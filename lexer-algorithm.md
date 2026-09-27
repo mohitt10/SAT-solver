@@ -18,7 +18,7 @@ A propositional logic formula containing:
 2. Read the formula one character at a time.
 3. Ignore spaces.
 4. If the character is between `a` and `z`, create a `VARIABLE` token.
-5. If the character is `&`, `|`, `~`, `(`, or `)`, create the corresponding token.
+5. If the character is `&`, `|`, `~`, `(` or `)`, create the corresponding token.
 6. If the current characters are `->`, create an `IMPLIES` token and skip both characters.
 7. If the current characters are `<->`, create an `IFF` token and skip all three characters.
 8. If the character does not match any valid token, report an invalid character.
@@ -33,7 +33,7 @@ Input:
 Output:
 LPAREN VARIABLE AND VARIABLE RPAREN IMPLIES VARIABLE
 
-Complexity
+Complexity:
 Time Complexity: O(n)
 Space Complexity: O(n)
 ,where n is the length of the input formula.
