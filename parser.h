@@ -1,37 +1,45 @@
+
 #ifndef PARSER_H
 #define PARSER_H
 
 #include "lexer.h"
 #include <memory>
+#include <vector>
 #include <string>
 
 using namespace std;
 
-// Defines the types of nodes used in the AST.
+// Represents the different types of nodes in the AST.
 enum NodeType {
-    VAR_NODE,
-    NOT_NODE,
-    AND_NODE,
-    OR_NODE,
-    IMPLIES_NODE,
-    IFF_NODE
+    VAR_NODE,       
+    NOT_NODE,       
+    AND_NODE,     
+    OR_NODE,       
+    IMPLIES_NODE,  // Implication operation (->)
+    IFF_NODE       // Biconditional operation (<->)
 };
 
-// Represents a node in the Abstract Syntax Tree (AST).
+// Represents one node in the Abstract Syntax Tree (AST).
 struct ASTNode {
-    NodeType type;
-    string value;
-    shared_ptr<ASTNode> left;
-    shared_ptr<ASTNode> right;
+    NodeType type;                  
+    string value;                  
+    shared_ptr<ASTNode> left;       // Pointer to the left child
+    shared_ptr<ASTNode> right;      // Pointer to the right child
 
-    // Initializes an AST node with its type, value, and children.
-    ASTNode(NodeType t, string v = "",
-            shared_ptr<ASTNode> l = nullptr,
-            shared_ptr<ASTNode> r = nullptr)
-        : type(t), value(v), left(l), right(r) {}
+    // Constructor to initialize an AST node.
+    ASTNode(NodeType type, string value = "",
+            shared_ptr<ASTNode> left = nullptr,
+            shared_ptr<ASTNode> right = nullptr)
+        : type(type), value(value), left(left), right(right) {}
 };
 
-// Parses a logical formula and returns the AST root.
-shared_ptr<ASTNode> parse(const string &formula);
+// Converts infix tokens into postfix notation using Shunting-Yard.
+vector<Token> infixToPostfix(const vector<Token>& tokens);
+
+// Builds an AST from postfix tokens using a stack.
+shared_ptr<ASTNode> buildAST(const vector<Token>& postfix);
+
+// Connects tokenization, postfix conversion, and AST construction.
+shared_ptr<ASTNode> parseFormula(const string& formula);
 
 #endif
