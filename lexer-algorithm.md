@@ -1,4 +1,5 @@
 # Lexer Algorithm
+> **Note:** This document outlines my understanding of the lexer algorithm and serves as a reference for implementation and further development.
 
 ## Aim
 To convert a propositional logic formula into a sequence of tokens.
