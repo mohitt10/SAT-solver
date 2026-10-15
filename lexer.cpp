@@ -31,7 +31,7 @@ vector<Token> tokenize(const string& formula) {
             else if (normalized == "implies")
                 tokens.push_back({IMPLIES, "->"});
             else if (normalized == "iff")
-                tokens.push_back({IFF, "<-->"});
+                tokens.push_back({IFF, "<->"});
             else
                 tokens.push_back({VARIABLE, variable});
             i--;
