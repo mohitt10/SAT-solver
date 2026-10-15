@@ -79,6 +79,7 @@ public:
 };
 
 class Clause {
+    //plan if its worth using set instead of vector for literals. For now, we will just use vector.
     vector<Literal> literals;
 
 public:
@@ -103,6 +104,17 @@ public:
         return false;
     }
 
+    bool isTautology() {
+        for (int i = 0; i < literals.size(); ++i) {
+            for (int j = i + 1; j < literals.size(); ++j) {
+                if (literals[i].isOpposite(literals[j])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     bool isEmpty() { 
         return literals.empty(); 
     }
@@ -116,6 +128,8 @@ class CNF {
     vector<Clause> clauses;
 
 public:
+    // plan if its worth checking if the clause already exists in the CNF before adding it. For now, we will just add it.
+    // we'll have to compare clauses by their contents, i.e. check if they contain the same literals
     void addClause(Clause clause) {
         clauses.push_back(clause);
     }
