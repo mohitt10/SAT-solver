@@ -8,8 +8,8 @@ To convert a propositional logic formula into a sequence of tokens.
 ## Input
 A propositional logic formula containing:
 - Variables: Strings starting with a letter (`a-z` or `A-Z`), followed by zero or more letters, digits or underscores
-- AND: `&`
-- OR: `|`
+- AND: `&` or the standalone word `and` (case-insensitive)
+- OR: `|` or the standalone word `or` (case-insensitive)
 - NOT: `~`
 - IMPLIES: `->`
 - IFF: `<->`
@@ -20,7 +20,7 @@ A propositional logic formula containing:
 2. Read the formula one character at a time.
 3. Ignore whitespace.
 4. If the character is a letter, collect consecutive letters, digits and underscores to form a complete variable name.
-5. Create a `VARIABLE` token containing the complete variable name.
+5. If the complete name matches `and` or `or` case-insensitively, create the corresponding operator token; otherwise create a `VARIABLE` token containing the complete variable name.
 6. If the character is `&`, `|`, `~`, `(` or `)`, create the corresponding token.
 7. If the current characters are `->`, create an `IMPLIES` token and skip both characters.
 8. If the current characters are `<->`, create an `IFF` token and skip all three characters.

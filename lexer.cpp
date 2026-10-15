@@ -20,7 +20,20 @@ vector<Token> tokenize(const string& formula) {
                 variable += formula[i];
                 i++;
             }
-            tokens.push_back({VARIABLE, variable});
+            string normalized = variable;
+            for (char& letter : normalized)
+                letter = static_cast<char>(tolower(static_cast<unsigned char>(letter)));
+
+            if (normalized == "and")
+                tokens.push_back({AND, variable});
+            else if (normalized == "or")
+                tokens.push_back({OR, variable});
+            else if (normalized == "implies")
+                tokens.push_back({IMPLIES, "->"});
+            else if (normalized == "iff")
+                tokens.push_back({IFF, "<-->"});
+            else
+                tokens.push_back({VARIABLE, variable});
             i--;
         }else if (ch == '&') {
             tokens.push_back({AND, "&"});

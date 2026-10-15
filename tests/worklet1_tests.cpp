@@ -66,6 +66,26 @@ void test_lexer_and_parser() {
                 numeric_variables[2].value == "10",
             "lexer should allow variables to start with digits");
 
+    const auto word_operators = tokenize("red and blue AND green AnD cyan or yellow Or magenta candy orange");
+    require(word_operators.size() == 13 &&
+                word_operators[1].type == AND &&
+                word_operators[1].value == "and" &&
+                word_operators[3].type == AND &&
+                word_operators[3].value == "AND" &&
+                word_operators[5].type == AND &&
+                word_operators[5].value == "AnD" &&
+                word_operators[7].type == OR &&
+                word_operators[7].value == "or" &&
+                word_operators[9].type == OR &&
+                word_operators[9].value == "Or" &&
+                word_operators[11].type == VARIABLE &&
+                word_operators[11].value == "candy" &&
+                word_operators[12].type == VARIABLE &&
+                word_operators[12].value == "orange",
+            "lexer should recognize standalone and/or words case-insensitively");
+    require(parseFormula("A AnD B Or C") != nullptr,
+            "parser should accept case-insensitive word-form operators");
+
     NodePtr root = parseFormula("(A & ~B) -> C");
     require(dynamic_cast<ImpliesNode*>(root.get()) != nullptr,
             "parser should produce the shared visitor-based AST");
