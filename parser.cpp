@@ -1,12 +1,14 @@
 
 #include "parser.h"
 #include <stdexcept>
-#include <unordered_map>
+#include <utility>
 
 using namespace std;
 
 // Returns the precedence of each operator.
 // A higher number means higher precedence.
+namespace {
+
 int precedence(TokenType type) {
     switch (type) {
         case NOT:     return 5; // Highest precedence
@@ -33,25 +35,38 @@ bool isRightAssociative(TokenType type) {
     return type == NOT || type == IMPLIES;
 }
 
+} // namespace
+
 // Converts infix notation into postfix notation
 // using the Shunting-Yard algorithm.
 vector<Token> infixToPostfix(const vector<Token>& tokens) {
     vector<Token> output;    // Stores the postfix expression
     vector<Token> operators; // Stack for operators and parentheses
+    bool expects_operand = true;
 
     // Process each token from left to right.
     for (const Token& token : tokens) {
         // Variables go directly into the output.
         if (token.type == VARIABLE) {
+            if (!expects_operand) {
+                throw runtime_error("Missing operator before variable");
+            }
             output.push_back(token);
+            expects_operand = false;
         }
         // Opening parentheses are pushed onto the operator stack.
         else if (token.type == LPAREN) {
+            if (!expects_operand) {
+                throw runtime_error("Missing operator before opening parenthesis");
+            }
             operators.push_back(token);
         }
         // When a closing parenthesis appears, pop operators
         // until the matching opening parenthesis is found.
         else if (token.type == RPAREN) {
+            if (expects_operand) {
+                throw runtime_error("Missing operand before closing parenthesis");
+            }
             while (!operators.empty() &&
                    operators.back().type != LPAREN) {
                 output.push_back(operators.back());
@@ -65,9 +80,21 @@ vector<Token> infixToPostfix(const vector<Token>& tokens) {
 
             // Remove the matching opening parenthesis.
             operators.pop_back();
+            expects_operand = false;
         }
         // Process operators according to precedence and associativity.
         else if (isOperator(token.type)) {
+            if (token.type == NOT) {
+                if (!expects_operand) {
+                    throw runtime_error("Unexpected NOT after operand");
+                }
+            } else {
+                if (expects_operand) {
+                    throw runtime_error("Missing operand for binary operator");
+                }
+                expects_operand = true;
+            }
+
             while (!operators.empty() &&
                    isOperator(operators.back().type)) {
                 TokenType top = operators.back().type;
@@ -106,6 +133,10 @@ vector<Token> infixToPostfix(const vector<Token>& tokens) {
         }
     }
 
+    if (expects_operand) {
+        throw runtime_error("Formula ends with a missing operand");
+    }
+
     // Pop all remaining operators into the output.
     while (!operators.empty()) {
         // An opening parenthesis remaining here is unmatched.
@@ -123,16 +154,14 @@ vector<Token> infixToPostfix(const vector<Token>& tokens) {
 
 // Builds an Abstract Syntax Tree from postfix tokens
 // using a stack of AST node pointers.
-shared_ptr<ASTNode> buildAST(const vector<Token>& postfix) {
-    vector<shared_ptr<ASTNode>> stack; // Stores partial AST nodes
+NodePtr buildAST(const vector<Token>& postfix) {
+    vector<NodePtr> stack; // Stores partial AST nodes
 
     // Process each token in postfix order.
     for (const Token& token : postfix) {
         // A variable creates a leaf node and is pushed onto the stack.
         if (token.type == VARIABLE) {
-            stack.push_back(
-                make_shared<ASTNode>(VAR_NODE, token.value)
-            );
+            stack.push_back(make_shared<VarNode>(token.value));
         }
         // NOT is a unary operator, so it needs one operand.
         else if (token.type == NOT) {
@@ -145,11 +174,7 @@ shared_ptr<ASTNode> buildAST(const vector<Token>& postfix) {
             stack.pop_back();
 
             // Create a NOT node with the operand as its left child.
-            stack.push_back(
-                make_shared<ASTNode>(
-                    NOT_NODE, "~", operand, nullptr
-                )
-            );
+            stack.push_back(make_shared<NotNode>(move(operand)));
         }
         // AND, OR, implication, and biconditional are binary operators.
         else if (token.type == AND ||
@@ -171,32 +196,22 @@ shared_ptr<ASTNode> buildAST(const vector<Token>& postfix) {
             stack.pop_back();
 
             // Determine the AST node type for this operator.
-            NodeType nodeType;
-
             switch (token.type) {
                 case AND:
-                    nodeType = AND_NODE;
+                    stack.push_back(make_shared<AndNode>(move(left), move(right)));
                     break;
                 case OR:
-                    nodeType = OR_NODE;
+                    stack.push_back(make_shared<OrNode>(move(left), move(right)));
                     break;
                 case IMPLIES:
-                    nodeType = IMPLIES_NODE;
+                    stack.push_back(make_shared<ImpliesNode>(move(left), move(right)));
                     break;
                 case IFF:
-                    nodeType = IFF_NODE;
+                    stack.push_back(make_shared<IffNode>(move(left), move(right)));
                     break;
                 default:
                     throw runtime_error("Invalid operator");
             }
-
-            // Create the operator node with its left and right children.
-            // Push the new subtree back onto the stack.
-            stack.push_back(
-                make_shared<ASTNode>(
-                    nodeType, token.value, left, right
-                )
-            );
         }
     }
 
@@ -210,7 +225,7 @@ shared_ptr<ASTNode> buildAST(const vector<Token>& postfix) {
 }
 
 // Main parsing function that connects all three stages.
-shared_ptr<ASTNode> parseFormula(const string& formula) {
+NodePtr parseFormula(const string& formula) {
     // Stage 1: Convert the input string into tokens using the lexer.
     vector<Token> tokens = tokenize(formula);
 

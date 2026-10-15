@@ -1,7 +1,4 @@
-// ast.h -- MINIMAL STUB of Module 1's AST, following the LLD
-// (abstract ASTNode with left/right + accept(Visitor), one subclass per connective).
-// When the real AST lands, keep these names/conventions or adapt the visitors in
-// truth_table.cpp (they are the only code that touches node internals).
+// ast.h -- shared Worklet 1 AST, using an abstract node and visitor dispatch.
 //
 // Conventions assumed:
 //   VarNode      : name

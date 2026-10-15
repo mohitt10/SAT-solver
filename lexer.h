@@ -2,7 +2,6 @@
 #define LEXER_H
 #include <string>
 #include <vector>
-using namespace std;
 
 enum TokenType {
     VARIABLE,
@@ -17,9 +16,9 @@ enum TokenType {
 
 struct Token {
     TokenType type;
-    string value;
+    std::string value;
 };
 
-vector<Token> tokenize(const string &formula);
+std::vector<Token> tokenize(const std::string& formula);
 
 #endif

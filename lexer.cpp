@@ -1,20 +1,22 @@
 #include "lexer.h"
 #include <cctype>
 #include <stdexcept>
+
 using namespace std;
 
-vector<Token> tokenize(const string &formula) {
+vector<Token> tokenize(const string& formula) {
     vector<Token> tokens;
 
-    for (int i = 0; i < formula.size(); i++) {
+    for (size_t i = 0; i < formula.size(); i++) {
         char ch = formula[i];
 
-        if (isspace(ch))
+        if (isspace(static_cast<unsigned char>(ch)))
             continue;
 
-        if (isalpha(ch)) {
-            string variable = "";
-            while (i < formula.size() &&(isalnum(formula[i]) || formula[i] == '_')) {
+        if (isalpha(static_cast<unsigned char>(ch))) {
+            string variable;
+            while (i < formula.size() &&
+                   (isalnum(static_cast<unsigned char>(formula[i])) || formula[i] == '_')) {
                 variable += formula[i];
                 i++;
             }

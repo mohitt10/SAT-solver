@@ -3,7 +3,9 @@
 #include <stdexcept>
 #include <unordered_map>
 
-std::string to_string(Classification c) {
+using namespace std;
+
+string to_string(Classification c) {
     switch (c) {
         case Classification::TAUTOLOGY:     return "Tautology";
         case Classification::CONTRADICTION: return "Contradiction";
@@ -25,7 +27,7 @@ namespace {
 // ---- Visitor 1: collect variables in order of first appearance ----
 class VarCollector : public Visitor {
 public:
-    std::vector<std::string> vars;
+    vector<string> vars;
     void visit(const VarNode& n) override {
         if (seen_.insert(n.name).second) vars.push_back(n.name);
     }
@@ -35,9 +37,9 @@ public:
     void visit(const ImpliesNode& n) override { binary(n); }
     void visit(const IffNode& n) override     { binary(n); }
 private:
-    std::set<std::string> seen_;
+    set<string> seen_;
     void walk(const NodePtr& p) {
-        if (!p) throw std::invalid_argument("malformed AST: missing child");
+        if (!p) throw invalid_argument("malformed AST: missing child");
         p->accept(*this);
     }
     void binary(const ASTNode& n) { walk(n.left); walk(n.right); }
@@ -46,15 +48,15 @@ private:
 // ---- Visitor 2: evaluate 64 rows at once (bit j of a word = row j of the block) ----
 class BlockEvaluator : public Visitor {
 public:
-    BlockEvaluator(const std::unordered_map<std::string, size_t>& idx,
-                   const std::vector<uint64_t>& patterns)
+    BlockEvaluator(const unordered_map<string, size_t>& idx,
+                   const vector<uint64_t>& patterns)
         : idx_(idx), pats_(patterns) {}
 
     uint64_t eval(const ASTNode& root) { root.accept(*this); return result_; }
 
     void visit(const VarNode& n) override {
         auto it = idx_.find(n.name);
-        if (it == idx_.end()) throw std::runtime_error("unbound variable: " + n.name);
+        if (it == idx_.end()) throw runtime_error("unbound variable: " + n.name);
         result_ = pats_[it->second];
     }
     void visit(const NotNode& n) override     { result_ = ~sub(n.left); }
@@ -64,11 +66,11 @@ public:
     void visit(const IffNode& n) override     { uint64_t a = sub(n.left), b = sub(n.right); result_ = ~(a ^ b); }
 
 private:
-    const std::unordered_map<std::string, size_t>& idx_;
-    const std::vector<uint64_t>& pats_;
+    const unordered_map<string, size_t>& idx_;
+    const vector<uint64_t>& pats_;
     uint64_t result_ = 0;
     uint64_t sub(const NodePtr& p) {
-        if (!p) throw std::invalid_argument("malformed AST: missing child");
+        if (!p) throw invalid_argument("malformed AST: missing child");
         p->accept(*this);
         return result_;
     }
@@ -80,26 +82,26 @@ const uint64_t kLowPattern[6] = {
     0xAAAAAAAAAAAAAAAAULL, 0xCCCCCCCCCCCCCCCCULL, 0xF0F0F0F0F0F0F0F0ULL,
     0xFF00FF00FF00FF00ULL, 0xFFFF0000FFFF0000ULL, 0xFFFFFFFF00000000ULL};
 
-std::unordered_map<std::string, size_t> index_of(const std::vector<std::string>& vars) {
-    std::unordered_map<std::string, size_t> idx;
+unordered_map<string, size_t> index_of(const vector<string>& vars) {
+    unordered_map<string, size_t> idx;
     for (size_t k = 0; k < vars.size(); ++k) idx[vars[k]] = k;
     return idx;
 }
 
 } // namespace
 
-std::vector<std::string> TruthTableEngine::collect_variables(const ASTNode& root) const {
+vector<string> TruthTableEngine::collect_variables(const ASTNode& root) const {
     VarCollector c;
     root.accept(c);
     return c.vars;
 }
 
 bool TruthTableEngine::evaluate(const ASTNode& root, const Assignment& a) const {
-    std::vector<std::string> vars = collect_variables(root);
-    std::vector<uint64_t> pats(vars.size());
+    vector<string> vars = collect_variables(root);
+    vector<uint64_t> pats(vars.size());
     for (size_t k = 0; k < vars.size(); ++k) {
         auto it = a.find(vars[k]);
-        if (it == a.end()) throw std::runtime_error("unbound variable: " + vars[k]);
+        if (it == a.end()) throw runtime_error("unbound variable: " + vars[k]);
         pats[k] = it->second ? ~0ULL : 0ULL;
     }
     auto idx = index_of(vars);
@@ -108,11 +110,11 @@ bool TruthTableEngine::evaluate(const ASTNode& root, const Assignment& a) const 
 }
 
 BitVector TruthTableEngine::build_results(const ASTNode& root,
-                                          const std::vector<std::string>& vars) const {
+                                          const vector<string>& vars) const {
     const size_t n = vars.size();
     if (n > max_vars_ || n > 62)
-        throw std::length_error("too many variables (" + std::to_string(n) +
-                                "); limit is " + std::to_string(max_vars_) +
+        throw length_error("too many variables (" + to_string(n) +
+                                "); limit is " + to_string(max_vars_) +
                                 " because the table has 2^n rows");
 
     const uint64_t rows   = 1ULL << n;
@@ -121,7 +123,7 @@ BitVector TruthTableEngine::build_results(const ASTNode& root,
 
     BitVector out(rows);
     auto idx = index_of(vars);
-    std::vector<uint64_t> pats(n);
+    vector<uint64_t> pats(n);
     BlockEvaluator ev(idx, pats);
 
     for (uint64_t b = 0; b < blocks; ++b) {
@@ -151,14 +153,14 @@ Classification TruthTableEngine::classify(const TruthTable& t) const {
 }
 
 bool TruthTableEngine::are_equivalent(const ASTNode& a, const ASTNode& b) const {
-    std::vector<std::string> vars = collect_variables(a);
-    std::set<std::string> have(vars.begin(), vars.end());
+    vector<string> vars = collect_variables(a);
+    set<string> have(vars.begin(), vars.end());
     for (const auto& v : collect_variables(b))
         if (have.insert(v).second) vars.push_back(v);
     return build_results(a, vars) == build_results(b, vars);
 }
 
-void print_truth_table(std::ostream& os, const TruthTable& t) {
+void print_truth_table(ostream& os, const TruthTable& t) {
     const size_t n = t.variables.size();
     for (const auto& v : t.variables) os << v << ' ';
     os << "| F\n";
@@ -167,7 +169,7 @@ void print_truth_table(std::ostream& os, const TruthTable& t) {
     for (uint64_t r = 0; r < t.num_rows(); ++r) {
         for (size_t k = 0; k < n; ++k) {
             bool bit = (r >> (n - 1 - k)) & 1ULL;
-            os << (bit ? 'T' : 'F') << std::string(t.variables[k].size(), ' ');
+            os << (bit ? 'T' : 'F') << string(t.variables[k].size(), ' ');
         }
         os << "| " << (t.value(r) ? 'T' : 'F') << '\n';
     }
