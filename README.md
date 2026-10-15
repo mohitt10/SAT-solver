@@ -13,7 +13,7 @@ handoff point for Worklet 2.
 
 ## Formula syntax
 
-- Variables begin with a letter and may contain letters, digits, and underscores.
+- Variables begin with a letter or digit and may contain letters, digits, and underscores.
 - Operators: `~` (NOT), `&` (AND), `|` (OR), `->` (implication), `<->` (iff).
 - Parentheses may be used to group expressions.
 - Precedence from highest to lowest: `~`, `&`, `|`, `->`, `<->`.

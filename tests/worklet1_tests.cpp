@@ -58,9 +58,19 @@ void test_lexer_and_parser() {
     require(tokens[5].type == RPAREN && tokens[6].type == IMPLIES,
             "lexer should recognize parentheses and implication");
 
+    const auto numeric_variables = tokenize("2nd_var & 10");
+    require(numeric_variables.size() == 3 &&
+                numeric_variables[0].type == VARIABLE &&
+                numeric_variables[0].value == "2nd_var" &&
+                numeric_variables[2].type == VARIABLE &&
+                numeric_variables[2].value == "10",
+            "lexer should allow variables to start with digits");
+
     NodePtr root = parseFormula("(A & ~B) -> C");
     require(dynamic_cast<ImpliesNode*>(root.get()) != nullptr,
             "parser should produce the shared visitor-based AST");
+    require(parseFormula("2nd_var & 10") != nullptr,
+            "parser should accept variables that start with digits");
 }
 
 void test_truth_table() {

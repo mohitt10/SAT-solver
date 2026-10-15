@@ -13,7 +13,7 @@ vector<Token> tokenize(const string& formula) {
         if (isspace(static_cast<unsigned char>(ch)))
             continue;
 
-        if (isalpha(static_cast<unsigned char>(ch))) {
+        if (isalnum(static_cast<unsigned char>(ch))) {
             string variable;
             while (i < formula.size() &&
                    (isalnum(static_cast<unsigned char>(formula[i])) || formula[i] == '_')) {
