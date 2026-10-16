@@ -1,4 +1,5 @@
 #include "nnf.h"
+#include "parse_error.h"
 #include "parser.h"
 #include "truth_table.h"
 #include <iostream>
@@ -144,6 +145,73 @@ void test_invalid_formulas() {
     }
 }
 
+void test_structured_parse_errors() {
+    const auto capture_error = [](const string& formula) {
+        try {
+            (void)parseFormula(formula);
+        } catch (const ParseError& error) {
+            return error;
+        }
+        throw runtime_error("expected ParseError for formula: " + formula);
+    };
+
+    const ParseError invalid_character = capture_error("A & @");
+    require(invalid_character.category == ErrorCategory::LEXICAL &&
+                invalid_character.kind == ErrorKind::INVALID_CHARACTER &&
+                invalid_character.offset == 4 &&
+                invalid_character.line == 1 &&
+                invalid_character.column == 5 &&
+                invalid_character.found == "@",
+            "lexer errors should provide their category and source location");
+
+    const ParseError invalid_operator = capture_error("A - B");
+    require(invalid_operator.category == ErrorCategory::LEXICAL &&
+                invalid_operator.kind == ErrorKind::INVALID_TOKEN &&
+                invalid_operator.offset == 2 &&
+                invalid_operator.found == "-" &&
+                !invalid_operator.expected.empty(),
+            "malformed operators should be reported as lexical token errors");
+
+    const ParseError missing_operand = capture_error("A & )");
+    require(missing_operand.category == ErrorCategory::SYNTAX &&
+                missing_operand.kind == ErrorKind::MISSING_OPERAND &&
+                missing_operand.offset == 4 &&
+                missing_operand.found == ")" &&
+                !missing_operand.expected.empty(),
+            "missing operands should identify the unexpected token");
+
+    const ParseError missing_operator = capture_error("A B");
+    require(missing_operator.kind == ErrorKind::MISSING_OPERATOR &&
+                missing_operator.offset == 2 &&
+                missing_operator.found == "B",
+            "adjacent operands should report a missing operator");
+
+    const ParseError unexpected_close = capture_error("A )");
+    require(unexpected_close.kind == ErrorKind::UNEXPECTED_CLOSING_PAREN &&
+                unexpected_close.offset == 2,
+            "a top-level closing parenthesis should have its own error kind");
+
+    const ParseError missing_close = capture_error("(A | B");
+    require(missing_close.kind == ErrorKind::MISSING_CLOSING_PAREN &&
+                missing_close.offset == 6 &&
+                missing_close.found.empty() &&
+                missing_close.expected == vector<string>{")"},
+            "an unclosed parenthesis should report end-of-input and expected ')'");
+
+    const ParseError unexpected_end = capture_error("A &\n");
+    require(unexpected_end.kind == ErrorKind::UNEXPECTED_END_OF_INPUT &&
+                unexpected_end.offset == 4 &&
+                unexpected_end.line == 2 &&
+                unexpected_end.column == 1 &&
+                unexpected_end.found.empty(),
+            "end-of-input errors should report the end location");
+
+    const ParseError empty_input = capture_error("");
+    require(empty_input.kind == ErrorKind::UNEXPECTED_END_OF_INPUT &&
+                empty_input.expected == vector<string>({"IDENTIFIER", "~", "("}),
+            "empty formulas should report expected operand starters");
+}
+
 } // namespace
 
 int main() {
@@ -152,6 +220,7 @@ int main() {
         test_truth_table();
         test_nnf();
         test_invalid_formulas();
+        test_structured_parse_errors();
     } catch (const exception& error) {
         cerr << "Test failure: " << error.what() << '\n';
         return 1;

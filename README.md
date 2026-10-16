@@ -58,6 +58,28 @@ Classification classification = engine.classify(table); // optional
 `NNFConverter::convert` creates a new AST with only variables, negated
 variables, AND, and OR; it does not modify the parsed tree.
 
+## Formula validation errors
+
+`parseFormula` stops at the first lexical or syntax error and throws
+`ParseError` from `parse_error.h`. The exception includes its category and kind,
+a human-readable message, the byte offset and 1-based line/column, the offending
+lexeme (empty at end of input), and expected tokens when applicable. For
+example, a GUI can validate input and display the first error like this:
+
+```cpp
+#include "parse_error.h"
+#include "parser.h"
+
+try {
+    (void)parseFormula(user_input);
+    // The formula is syntactically valid.
+} catch (const ParseError& error) {
+    // Show error.message and highlight error.line / error.column.
+}
+```
+
+The AST structure is unchanged. Multi-error recovery is not implemented.
+
 ## Tests
 
 Run focused lexer, parser, truth-table, and NNF tests with:
