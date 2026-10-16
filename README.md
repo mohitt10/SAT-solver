@@ -38,6 +38,26 @@ The demo always prints the formula in NNF. Truth-table generation is opt-in;
 the engine guards against formulas with more than 24 distinct variables by
 default.
 
+## Desktop GUI
+
+The Qt Widgets GUI validates formulas as they are typed and displays the first
+lexical or syntax error with its line and column. For syntax errors, it also
+highlights the offending token when one is present.
+
+Install Qt 6 Widgets and `pkg-config`, then build and launch with:
+
+```sh
+make gui
+./sat_solver_gui
+```
+
+The GUI clears inherited `GTK_PATH` and `GIO_MODULE_DIR` before initializing
+Qt, avoiding incompatible GTK modules when launched from environments such as
+the VS Code Snap terminal.
+
+The default Qt package is `Qt6Widgets`. To build with a Qt 5 installation,
+specify `make gui QT_PACKAGE=Qt5Widgets`.
+
 ## Use from another Worklet 1 component
 
 ```cpp
