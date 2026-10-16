@@ -60,6 +60,8 @@ vector<Token> tokenize(const string& formula) {
                 add_token(IMPLIES, "->", start, start_line, start_column);
             else if (normalized == "iff")
                 add_token(IFF, "<->", start, start_line, start_column);
+            else if (normalized == "not")
+                add_token(NOT, "~", start, start_line, start_column);
             else
                 add_token(VARIABLE, variable, start, start_line, start_column);
             continue;
