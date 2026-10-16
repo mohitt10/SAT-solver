@@ -1,0 +1,4 @@
+sat_solver
+sat_solver.exe
+*.o
+*.exe
