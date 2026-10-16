@@ -1,9 +1,9 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-const string OR = "||";
-const string AND = "&&";
-const string NOT = "!";
+const string OR = " OR ";
+const string AND = " AND ";
+const string NOT = " NOT ";
 
 class Encoder {
     private:
