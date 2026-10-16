@@ -3,7 +3,7 @@ using namespace std;
 
 const string OR = " OR ";
 const string AND = " AND ";
-const string NOT = " NOT ";
+const string NOT = "NOT ";
 
 class Encoder {
     private:
@@ -37,6 +37,7 @@ class Encoder {
             encoded_string.push_back(')');
             
             for(int c1 = 1; c1 <= no_of_col; c1++) {
+                if(no_of_col == 1)  break;
                 encoded_string += AND;
                 encoded_string.push_back('(');
                 bool flag = 0;
@@ -112,10 +113,20 @@ class Encoder {
 
 int main() {
     
-    vector<pair<int, int>> v = {{1, 2}, {1, 3}, {2, 3}};
-    Encoder e(3, 3, v);
+    int no_of_colours, no_of_nodes, no_of_edges;
+    cout << "Enter number of colours: ";
+    cin >> no_of_colours;
+    cout << "Enter number of nodes: ";
+    cin >> no_of_nodes;
+    cout << "Enter number of edges: ";
+    cin >> no_of_edges;
+
+    vector<pair<int, int>> edges(no_of_edges);
+    for(auto &[a, b]: edges)    cin >> a >> b;
+    
+    Encoder e(no_of_nodes, no_of_colours, edges);
     e.build_initial_string();
     e.addedgeconstraint();
     e.printencodedstring();
-    cout << e.checkresult({ { "1_1", true }, { "2_2", true }  });
+    // cout << e.checkresult({ { "1_1", true }, { "2_2", true }  });
 }
