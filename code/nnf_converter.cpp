@@ -70,6 +70,14 @@ public:
         }
     }
 
+    void visit(const ImpliesNode&) override {
+        throw std::invalid_argument("Implication node is not valid in NNF");
+    }
+
+    void visit(const IffNode&) override {
+        throw std::invalid_argument("Biconditional node is not valid in NNF");
+    }
+
 };
 
 }

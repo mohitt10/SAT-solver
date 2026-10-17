@@ -18,7 +18,7 @@ endif
 WORKLET1_SOURCES := lexer.cpp parser.cpp truth_table.cpp nnf.cpp
 WORKLET1_HEADERS := ast.h lexer.h parser.h truth_table.h nnf.h parse_error.h
 SAT_SOLVER_SOURCES := code/nnf_converter.cpp code/dpll_solver.cpp
-SAT_SOLVER_HEADERS := code/cnf_structures.hpp
+SAT_SOLVER_HEADERS := ast.h code/cnf_structures.hpp
 SAT_SOLVER_OBJECTS := $(BUILD_DIR)/nnf_converter.o $(BUILD_DIR)/dpll_solver.o
 
 CNF_TEST := $(BUILD_DIR)/nnf_to_cnf_test$(EXE_EXT)
@@ -32,8 +32,8 @@ all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
 gui: sat_solver_gui$(EXE_EXT)
 
-sat_solver$(EXE_EXT): $(WORKLET1_SOURCES) main.cpp $(WORKLET1_HEADERS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) main.cpp -o $@
+sat_solver$(EXE_EXT): $(WORKLET1_SOURCES) main.cpp $(WORKLET1_HEADERS) $(SAT_SOLVER_LIBRARY)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) main.cpp $(SAT_SOLVER_LIBRARY) -o $@
 
 sat_solver_gui$(EXE_EXT): $(WORKLET1_SOURCES) gui_main.cpp $(WORKLET1_HEADERS)
 	@pkg-config --exists $(QT_PACKAGE) || { \

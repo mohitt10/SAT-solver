@@ -1,79 +1,12 @@
 #pragma once
 
-#include <memory>
+#include "../ast.h"
+
 #include <string>
-#include <utility>
 #include <vector>
 #include <unordered_map>
 
 using namespace std;
-
-//AST Node declarations
-
-struct VarNode;
-struct NotNode;
-struct AndNode;
-struct OrNode;
-
-class Visitor {
-public:
-    virtual ~Visitor() = default;
-    virtual void visit(const VarNode&) = 0;
-    virtual void visit(const NotNode&) = 0;
-    virtual void visit(const AndNode&) = 0;
-    virtual void visit(const OrNode&) = 0;
-};
-
-class ASTNode;
-using NodePtr = shared_ptr<ASTNode>;
-
-class ASTNode {
-public:
-    NodePtr left, right;
-    virtual ~ASTNode() = default;
-    virtual void accept(Visitor& v) const = 0;
-
-protected:
-    explicit ASTNode(NodePtr l = nullptr, NodePtr r = nullptr)
-        : left(move(l)), right(move(r)) {}
-};
-
-struct VarNode : ASTNode {
-    string name;
-    explicit VarNode(string n) : name(move(n)) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
-};
-
-struct NotNode : ASTNode {
-    explicit NotNode(NodePtr c) : ASTNode(move(c)) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
-};
-
-struct AndNode : ASTNode {
-    AndNode(NodePtr l, NodePtr r) : ASTNode(move(l), move(r)) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
-};
-
-struct OrNode : ASTNode {
-    OrNode(NodePtr l, NodePtr r) : ASTNode(move(l), move(r)) {}
-    void accept(Visitor& v) const override { v.visit(*this); }
-};
-
-inline NodePtr mkVar(const string& n) {
-    return make_shared<VarNode>(n);
-}
-
-inline NodePtr mkNot(NodePtr a) {
-    return make_shared<NotNode>(move(a));
-}
-
-inline NodePtr mkAnd(NodePtr a, NodePtr b) {
-    return make_shared<AndNode>(move(a), move(b));
-}
-
-inline NodePtr mkOr(NodePtr a, NodePtr b) {
-    return make_shared<OrNode>(move(a), move(b));
-}
 
 //CNF Data Structures
 class Literal {

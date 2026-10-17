@@ -1,6 +1,7 @@
 #include "nnf.h"
 #include "parser.h"
 #include "truth_table.h"
+#include "code/cnf_structures.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -75,6 +76,22 @@ int main(int argc, char* argv[]) {
         NodePtr nnf = converter.convert(*parsed);
         FormulaFormatter formatter;
         cout << "NNF: " << formatter.format(*nnf) << '\n';
+
+        CNF cnf = convert_nnf_to_cnf(nnf);
+        SolverConfig config;
+        SolverResult result = solve(cnf, config);
+
+        cout << "SAT result: " << (result.is_sat ? "SAT" : "UNSAT") << '\n';
+        if (result.is_sat) {
+            cout << "Assignment:\n";
+            for (const auto& assignment : result.final_assignments) {
+                cout << "  " << assignment.first << " = "
+                     << (assignment.second ? "true" : "false") << '\n';
+            }
+        }
+        cout << "Decisions: " << result.decision_count << '\n'
+             << "Backtracks: " << result.backtrack_count << '\n'
+             << "Solver time: " << result.total_execution_time_ms << " ms\n";
     } catch (const exception& error) {
         cerr << "Error: " << error.what() << '\n';
         return 1;
