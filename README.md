@@ -1,15 +1,16 @@
-# SAT-SOLVER — Worklet 1
+# SAT-SOLVER — Worklets 1–3
 
 Worklet 1 provides the propositional-logic front end:
 
 ```text
 formula → lexer → parser → shared AST
                            ├─ optional truth table / classification
-                           └─ NNF converter → NNF AST
+                           └─ NNF converter → CNF converter → DPLL solver
 ```
 
-It does not implement CNF conversion or SAT solving. The NNF AST is the
-handoff point for Worklet 2.
+The command-line application solves propositional formulas and can optionally
+print their truth table. The Qt GUI uses the same CNF converter and DPLL solver
+to solve graph-colouring instances.
 
 ## Formula syntax
 
@@ -21,12 +22,15 @@ handoff point for Worklet 2.
 
 ## Build and run
 
-Build the command-line demo:
+Build and run the command-line SAT solver:
 
 ```sh
 make
 ./sat_solver "(A & ~B) -> C"
 ```
+
+The output includes the formula in NNF, its SAT/UNSAT result, a satisfying
+assignment when one exists, and solver statistics.
 
 Generate and classify a truth table as well:
 
@@ -34,14 +38,13 @@ Generate and classify a truth table as well:
 ./sat_solver --truth-table "(A & ~B) -> C"
 ```
 
-The demo always prints the formula in NNF. Truth-table generation is opt-in;
-the engine guards against formulas with more than 24 distinct variables by
-default.
+Truth-table generation is opt-in; the engine guards against formulas with more
+than 24 distinct variables by default.
 
 ## Graph-coloring GUI
 
 The Qt Widgets GUI lets you choose a vertex and colour count, add graph edges by
-clicking two vertices, and ask the SAT solver for a valid coloring. A
+clicking two vertices, and ask the SAT solver for a valid colouring. A
 satisfiable result is shown directly on the graph; unsatisfiable graphs are
 reported in the status area. Right-click to cancel an in-progress edge, or use
 **Clear edges** to start over.
@@ -59,6 +62,18 @@ terminal.
 
 The default Qt package is `Qt6Widgets`. To build with a Qt 5 installation,
 specify `make gui QT_PACKAGE=Qt5Widgets`.
+
+## Encoder benchmark
+
+Build the graph-colouring encoder and DPLL comparison program with:
+
+```sh
+make benchmark
+./performance
+```
+
+It reports CNF and solver statistics for the supplied graph. It is a
+standalone benchmark, separate from the interactive GUI.
 
 ## Use from another Worklet 1 component
 
@@ -80,13 +95,14 @@ Classification classification = engine.classify(table); // optional
 `NNFConverter::convert` creates a new AST with only variables, negated
 variables, AND, and OR; it does not modify the parsed tree.
 
-## Formula validation errors
+## Formula errors
 
 `parseFormula` stops at the first lexical or syntax error and throws
 `ParseError` from `parse_error.h`. The exception includes its category and kind,
 a human-readable message, the byte offset and 1-based line/column, the offending
-lexeme (empty at end of input), and expected tokens when applicable. A
-formula-validation UI can display the first error like this:
+lexeme (empty at end of input), and expected tokens when applicable. The
+command-line solver reports these errors and exits unsuccessfully. A caller
+can inspect the error details like this:
 
 ```cpp
 #include "parse_error.h"
@@ -104,7 +120,7 @@ The AST structure is unchanged. Multi-error recovery is not implemented.
 
 ## Tests
 
-Run the lexer, parser, truth-table, NNF, SAT, and graph-coloring tests with:
+Run the lexer, parser, truth-table, NNF/CNF, SAT, and graph-colouring tests with:
 
 ```sh
 make test

@@ -1,7 +1,7 @@
 #include "nnf.h"
 #include "parser.h"
 #include "truth_table.h"
-#include "code/cnf_structures.hpp"
+#include "code/sat_types.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <string>

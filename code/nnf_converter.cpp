@@ -1,4 +1,4 @@
-#include "cnf_structures.hpp"
+#include "sat_types.hpp"
 
 #include <stdexcept>
 #include <vector>

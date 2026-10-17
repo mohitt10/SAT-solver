@@ -18,7 +18,7 @@ endif
 WORKLET1_SOURCES := lexer.cpp parser.cpp truth_table.cpp nnf.cpp
 WORKLET1_HEADERS := ast.h lexer.h parser.h truth_table.h nnf.h parse_error.h
 SAT_SOLVER_SOURCES := code/nnf_converter.cpp code/dpll_solver.cpp
-SAT_SOLVER_HEADERS := ast.h code/cnf_structures.hpp
+SAT_SOLVER_HEADERS := ast.h code/sat_types.hpp
 SAT_SOLVER_OBJECTS := $(BUILD_DIR)/nnf_converter.o $(BUILD_DIR)/dpll_solver.o
 GRAPH_COLORING_SOURCES := graph_coloring.cpp $(SAT_SOLVER_SOURCES)
 
@@ -28,16 +28,18 @@ WORKLET1_TEST := $(BUILD_DIR)/worklet1_tests$(EXE_EXT)
 GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all gui test test-worklet1 test-cnf test-e2e test-coloring clean
+.PHONY: all benchmark gui test test-worklet1 test-cnf test-e2e test-coloring clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
 gui: sat_solver_gui$(EXE_EXT)
 
+benchmark: performance$(EXE_EXT)
+
 sat_solver$(EXE_EXT): $(WORKLET1_SOURCES) main.cpp $(WORKLET1_HEADERS) $(SAT_SOLVER_LIBRARY)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) main.cpp $(SAT_SOLVER_LIBRARY) -o $@
 
-sat_solver_gui$(EXE_EXT): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) gui_main.cpp graph_coloring.h $(WORKLET1_HEADERS)
+sat_solver_gui$(EXE_EXT): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) gui_main.cpp graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS)
 	@pkg-config --exists $(QT_PACKAGE) || { \
 		echo "Qt Widgets package '$(QT_PACKAGE)' not found; install Qt Widgets or set QT_PACKAGE."; \
 		exit 1; \
@@ -45,6 +47,9 @@ sat_solver_gui$(EXE_EXT): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) gui_main
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $$(pkg-config --cflags $(QT_PACKAGE)) \
 		$(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) gui_main.cpp \
 		$$(pkg-config --libs $(QT_PACKAGE)) -o $@
+
+performance$(EXE_EXT): $(WORKLET1_SOURCES) encoder_performance_simple.cpp $(GRAPH_COLORING_SOURCES) graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) encoder_performance_simple.cpp -o $@
 
 $(SAT_SOLVER_LIBRARY): $(SAT_SOLVER_OBJECTS)
 	$(AR) rcs $@ $^
@@ -87,6 +92,7 @@ $(BUILD_DIR):
 clean:
 	$(call DELETE_FILE,sat_solver$(EXE_EXT))
 	$(call DELETE_FILE,sat_solver_gui$(EXE_EXT))
+	$(call DELETE_FILE,performance$(EXE_EXT))
 	$(call DELETE_FILE,$(SAT_SOLVER_LIBRARY))
 	$(call DELETE_FILE,$(BUILD_DIR)/nnf_converter.o)
 	$(call DELETE_FILE,$(BUILD_DIR)/dpll_solver.o)

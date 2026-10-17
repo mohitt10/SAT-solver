@@ -1,199 +1,141 @@
-#include "cnf_structures.hpp"
+#include "sat_types.hpp"
+
 #include <chrono>
-#include <iostream>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
-using namespace std;
+namespace {
 
-// ============================================================================
-// DPLL State Simplification
-// ============================================================================
-
-CNF assign_literal(CNF current_cnf, Literal assigned_lit) {
+CNF assign_literal(const CNF& cnf, const Literal& assigned_literal) {
     CNF simplified;
-
-    vector<Clause> current_clauses = current_cnf.getClauses();
-    
-    for (int i = 0; i < current_clauses.size(); i++) {
-        Clause clause = current_clauses[i];
-        
-        // If the clause contains our true literal, the whole clause is true. Skip it.
-        if (clause.containsLiteral(assigned_lit)) {
-            continue; 
+    for (const Clause& clause : cnf.getClauses()) {
+        if (clause.containsLiteral(assigned_literal)) {
+            continue;
         }
 
-        // Otherwise, copy the clause but remove the opposite (false) literal.
-        Clause shrunk;
-        vector<Literal> lits = clause.getLiterals();
-        
-        for (int j = 0; j < lits.size(); j++) {
-            Literal lit = lits[j];
-            if (!lit.isOpposite(assigned_lit)) {
-                shrunk.addLiteral(lit);
+        Clause reduced_clause;
+        for (const Literal& literal : clause.getLiterals()) {
+            if (!literal.isOpposite(assigned_literal)) {
+                reduced_clause.addLiteral(literal);
             }
         }
-        simplified.addClause(shrunk);
+        simplified.addClause(reduced_clause);
     }
     return simplified;
 }
 
-bool find_unit_literal(CNF cnf, Literal& out_literal) {
-    vector<Clause> clauses = cnf.getClauses();
-    
-    for (int i = 0; i < clauses.size(); i++) {
-        if (clauses[i].size() == 1) {
-            // Get the 0th index directly instead of iterators
-            out_literal = clauses[i].getLiterals()[0];
+bool has_empty_clause(const CNF& cnf) {
+    for (const Clause& clause : cnf.getClauses()) {
+        if (clause.isEmpty()) {
             return true;
         }
     }
     return false;
 }
 
-bool find_pure_literal(CNF cnf, Literal& out_literal) {
-    unordered_map<string, int> polarity_map;
-    
-    vector<Clause> clauses = cnf.getClauses();
-    for (int i = 0; i < clauses.size(); i++) {
-        vector<Literal> lits = clauses[i].getLiterals();
-        
-        for (int j = 0; j < lits.size(); j++) {
-            Literal lit = lits[j];
-            string var_name = lit.getVariable();
-            
-            int current_polarity = 1;
-            if (lit.isNegated()) {
-                current_polarity = -1;
-            }
-            
-            if (polarity_map.count(var_name) == 0) {
-                polarity_map[var_name] = current_polarity;
-            } else {
-                if (polarity_map[var_name] != current_polarity) {
-                    polarity_map[var_name] = 0; // Mixed polarity
-                }
-            }
+bool find_unit_literal(const CNF& cnf, Literal& result) {
+    for (const Clause& clause : cnf.getClauses()) {
+        if (clause.size() == 1) {
+            result = clause.getLiterals().front();
+            return true;
         }
     }
-    
-    for (auto entry : polarity_map) {
-        string var_name = entry.first;
-        int polarity = entry.second;
-
-        if (polarity != 0) {
-            bool is_negated = false;
-            if (polarity == -1) {
-                is_negated = true;
-            }
-            out_literal = Literal(var_name, is_negated);
-            return true; 
-        }
-    }
-    
     return false;
 }
 
-//DPLL Engine
-bool dpll_recursive(CNF cnf, unordered_map<string, bool>& assignments, SolverConfig config, SolverResult& stats) {
+bool find_pure_literal(const CNF& cnf, Literal& result) {
+    std::unordered_map<std::string, int> polarities;
+    for (const Clause& clause : cnf.getClauses()) {
+        for (const Literal& literal : clause.getLiterals()) {
+            const int polarity = literal.isNegated() ? -1 : 1;
+            const auto insertion = polarities.emplace(
+                literal.getVariable(), polarity);
+            if (!insertion.second && insertion.first->second != polarity) {
+                insertion.first->second = 0;
+            }
+        }
+    }
 
-    // Base Case: satisfied
+    for (const auto& entry : polarities) {
+        if (entry.second != 0) {
+            result = Literal(entry.first, entry.second < 0);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool dpll_recursive(
+    CNF cnf,
+    std::unordered_map<std::string, bool>& assignments,
+    const SolverConfig& config,
+    SolverResult& stats) {
+    const auto checkpoint = assignments;
+
+    while (true) {
+        if (has_empty_clause(cnf)) {
+            ++stats.backtrack_count;
+            assignments = checkpoint;
+            return false;
+        }
+        if (cnf.isEmpty()) {
+            return true;
+        }
+
+        Literal forced_literal;
+        if (config.use_unit_prop && find_unit_literal(cnf, forced_literal)) {
+            assignments[forced_literal.getVariable()] =
+                !forced_literal.isNegated();
+            cnf = assign_literal(cnf, forced_literal);
+            continue;
+        }
+        if (config.use_pure_literal && find_pure_literal(cnf, forced_literal)) {
+            assignments[forced_literal.getVariable()] =
+                !forced_literal.isNegated();
+            cnf = assign_literal(cnf, forced_literal);
+            continue;
+        }
+        break;
+    }
+
     if (cnf.isEmpty()) {
         return true;
     }
 
-    // Base Case: conflict
-    vector<Clause> clauses = cnf.getClauses();
-    for (int i = 0; i < clauses.size(); i++) {
-        if (clauses[i].isEmpty()) {
-            stats.backtrack_count++;
-            return false; 
+    const Literal branch_literal = cnf.getClauses().front().getLiterals().front();
+    const std::string& variable = branch_literal.getVariable();
+    ++stats.decision_count;
+
+    for (const bool value : {true, false}) {
+        assignments[variable] = value;
+        const Literal satisfied_literal(variable, !value);
+        if (dpll_recursive(
+                assign_literal(cnf, satisfied_literal),
+                assignments,
+                config,
+                stats)) {
+            return true;
         }
     }
 
-    // Save our current assignments so we can undo them if a branch fails
-    unordered_map<string, bool> checkpoint = assignments;
-
-    // Unit Propagation
-    Literal unit_lit;
-    while (config.use_unit_prop && find_unit_literal(cnf, unit_lit)) {
-        assignments[unit_lit.getVariable()] = !unit_lit.isNegated();
-        cnf = assign_literal(cnf, unit_lit);
-        
-        if (cnf.isEmpty()) return true;
-        
-        vector<Clause> new_clauses = cnf.getClauses();
-        for (int i = 0; i < new_clauses.size(); i++) {
-            if (new_clauses[i].isEmpty()) {
-                stats.backtrack_count++;
-                assignments = checkpoint; // Undo
-                return false; 
-            }
-        }
-    }
-
-    // Pure Literal Elimination
-    Literal pure_lit;
-    while (config.use_pure_literal && find_pure_literal(cnf, pure_lit)) {
-        assignments[pure_lit.getVariable()] = !pure_lit.isNegated();
-        cnf = assign_literal(cnf, pure_lit);
-        
-        if (cnf.isEmpty()) return true;
-        
-        vector<Clause> new_clauses = cnf.getClauses();
-        for (int i = 0; i < new_clauses.size(); i++) {
-            if (new_clauses[i].isEmpty()) {
-                stats.backtrack_count++;
-                assignments = checkpoint; // Undo
-                return false; 
-            }
-        }
-    }
-
-    // Branching: pick a literal from the first clause and try both True and False assignments
-    stats.decision_count++;
-    
-    // Simplest logic possible: get first clause at index 0, get first literal at index 0
-    Clause first_clause = cnf.getClauses()[0];
-    Literal branch_lit = first_clause.getLiterals()[0];
-    string var_name = branch_lit.getVariable();
-
-    // Guess True
-    assignments[var_name] = true;
-    Literal guess_true(var_name, false);
-    CNF cnf_if_true = assign_literal(cnf, guess_true);
-    
-    if (dpll_recursive(cnf_if_true, assignments, config, stats)) {
-        return true;
-    }
-
-    // Guess False
-    assignments[var_name] = false;
-    Literal guess_false(var_name, true);
-    CNF cnf_if_false = assign_literal(cnf, guess_false);
-    
-    if (dpll_recursive(cnf_if_false, assignments, config, stats)) {
-        return true;
-    }
-
-    // Total Failure: Undo and backtrack
     assignments = checkpoint;
     return false;
 }
 
-//Public API
+} // namespace
+
 SolverResult solve(CNF initial_cnf, SolverConfig config) {
     SolverResult result;
-    
-    auto start = chrono::high_resolution_clock::now();
+    const auto start = std::chrono::steady_clock::now();
+    result.is_sat = dpll_recursive(
+        std::move(initial_cnf), result.final_assignments, config, result);
+    const auto end = std::chrono::steady_clock::now();
+    result.total_execution_time_ms =
+        std::chrono::duration<double, std::milli>(end - start).count();
 
-    result.is_sat = dpll_recursive(initial_cnf, result.final_assignments, config, result);
-
-    auto end = chrono::high_resolution_clock::now();
-    chrono::duration<double, milli> duration = end - start;
-    result.total_execution_time_ms = duration.count();
-
-    if (result.is_sat == false) {
+    if (!result.is_sat) {
         result.final_assignments.clear();
     }
-    
     return result;
 }

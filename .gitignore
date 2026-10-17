@@ -1,1 +1,8 @@
 .vscode/
+/build/
+/sat_solver
+/sat_solver.exe
+/sat_solver_gui
+/sat_solver_gui.exe
+/performance
+/performance.exe

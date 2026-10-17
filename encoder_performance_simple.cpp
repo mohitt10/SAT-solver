@@ -2,7 +2,7 @@
 #include "parser.h"
 #include "nnf.h"
 #include "truth_table.h"
-#include "code/cnf_structures.hpp"
+#include "code/sat_types.hpp"
 #include "graph_coloring.h"
 using namespace std;
 
@@ -116,7 +116,7 @@ class PerformanceTester {
 
                         vector<int> assignment = e.decoderesult(values);
                         cout << "\nDecoded graph colouring:\n";
-                        for(int j = 0; j < assignment.size(); j++) {
+                        for(size_t j = 0; j < assignment.size(); j++) {
                             cout << "Node " << j + 1 << " -> Colour " << assignment[j] << "\n";
                         }
                         cout << "Valid colouring: " << (e.checkresult(values) ? "YES" : "NO") << "\n";
