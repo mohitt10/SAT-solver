@@ -1,0 +1,3 @@
+1. have a cutoff timer for given number of variables 
+2. comparing performance of applying various heuristics -> add to the presentation
+3. 
