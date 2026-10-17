@@ -20,13 +20,15 @@ WORKLET1_HEADERS := ast.h lexer.h parser.h truth_table.h nnf.h parse_error.h
 SAT_SOLVER_SOURCES := code/nnf_converter.cpp code/dpll_solver.cpp
 SAT_SOLVER_HEADERS := ast.h code/cnf_structures.hpp
 SAT_SOLVER_OBJECTS := $(BUILD_DIR)/nnf_converter.o $(BUILD_DIR)/dpll_solver.o
+GRAPH_COLORING_SOURCES := graph_coloring.cpp $(SAT_SOLVER_SOURCES)
 
 CNF_TEST := $(BUILD_DIR)/nnf_to_cnf_test$(EXE_EXT)
 END_TO_END_TEST := $(BUILD_DIR)/end_to_end_test$(EXE_EXT)
 WORKLET1_TEST := $(BUILD_DIR)/worklet1_tests$(EXE_EXT)
+GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all gui test test-worklet1 test-cnf test-e2e clean
+.PHONY: all gui test test-worklet1 test-cnf test-e2e test-coloring clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
@@ -35,13 +37,14 @@ gui: sat_solver_gui$(EXE_EXT)
 sat_solver$(EXE_EXT): $(WORKLET1_SOURCES) main.cpp $(WORKLET1_HEADERS) $(SAT_SOLVER_LIBRARY)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) main.cpp $(SAT_SOLVER_LIBRARY) -o $@
 
-sat_solver_gui$(EXE_EXT): $(WORKLET1_SOURCES) gui_main.cpp $(WORKLET1_HEADERS)
+sat_solver_gui$(EXE_EXT): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) gui_main.cpp graph_coloring.h $(WORKLET1_HEADERS)
 	@pkg-config --exists $(QT_PACKAGE) || { \
 		echo "Qt Widgets package '$(QT_PACKAGE)' not found; install Qt Widgets or set QT_PACKAGE."; \
 		exit 1; \
 	}
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $$(pkg-config --cflags $(QT_PACKAGE)) \
-		$(WORKLET1_SOURCES) gui_main.cpp $$(pkg-config --libs $(QT_PACKAGE)) -o $@
+		$(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) gui_main.cpp \
+		$$(pkg-config --libs $(QT_PACKAGE)) -o $@
 
 $(SAT_SOLVER_LIBRARY): $(SAT_SOLVER_OBJECTS)
 	$(AR) rcs $@ $^
@@ -61,7 +64,10 @@ $(END_TO_END_TEST): tests/end_to_end_test.cpp $(SAT_SOLVER_LIBRARY) $(SAT_SOLVER
 $(WORKLET1_TEST): $(WORKLET1_SOURCES) tests/worklet1_tests.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet1_tests.cpp -o $@
 
-test: test-worklet1 test-cnf test-e2e
+$(GRAPH_COLORING_TEST): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp -o $@
+
+test: test-worklet1 test-cnf test-e2e test-coloring
 
 test-worklet1: $(WORKLET1_TEST)
 	./$(WORKLET1_TEST)
@@ -71,6 +77,9 @@ test-cnf: $(CNF_TEST)
 
 test-e2e: $(END_TO_END_TEST)
 	./$(END_TO_END_TEST)
+
+test-coloring: $(GRAPH_COLORING_TEST)
+	./$(GRAPH_COLORING_TEST)
 
 $(BUILD_DIR):
 	$(MKDIR_BUILD)
@@ -84,3 +93,4 @@ clean:
 	$(call DELETE_FILE,$(CNF_TEST))
 	$(call DELETE_FILE,$(END_TO_END_TEST))
 	$(call DELETE_FILE,$(WORKLET1_TEST))
+	$(call DELETE_FILE,$(GRAPH_COLORING_TEST))

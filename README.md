@@ -38,11 +38,13 @@ The demo always prints the formula in NNF. Truth-table generation is opt-in;
 the engine guards against formulas with more than 24 distinct variables by
 default.
 
-## Desktop GUI
+## Graph-coloring GUI
 
-The Qt Widgets GUI validates formulas as they are typed and displays the first
-lexical or syntax error with its line and column. For syntax errors, it also
-highlights the offending token when one is present.
+The Qt Widgets GUI lets you choose a vertex and colour count, add graph edges by
+clicking two vertices, and ask the SAT solver for a valid coloring. A
+satisfiable result is shown directly on the graph; unsatisfiable graphs are
+reported in the status area. Right-click to cancel an in-progress edge, or use
+**Clear edges** to start over.
 
 Install Qt 6 Widgets and `pkg-config`, then build and launch with:
 
@@ -51,9 +53,9 @@ make gui
 ./sat_solver_gui
 ```
 
-The GUI clears inherited `GTK_PATH` and `GIO_MODULE_DIR` before initializing
-Qt, avoiding incompatible GTK modules when launched from environments such as
-the VS Code Snap terminal.
+At launch, the GUI clears inherited `GTK_PATH` and `GIO_MODULE_DIR` values to
+avoid incompatible GTK modules in environments such as the VS Code Snap
+terminal.
 
 The default Qt package is `Qt6Widgets`. To build with a Qt 5 installation,
 specify `make gui QT_PACKAGE=Qt5Widgets`.
@@ -83,8 +85,8 @@ variables, AND, and OR; it does not modify the parsed tree.
 `parseFormula` stops at the first lexical or syntax error and throws
 `ParseError` from `parse_error.h`. The exception includes its category and kind,
 a human-readable message, the byte offset and 1-based line/column, the offending
-lexeme (empty at end of input), and expected tokens when applicable. For
-example, a GUI can validate input and display the first error like this:
+lexeme (empty at end of input), and expected tokens when applicable. A
+formula-validation UI can display the first error like this:
 
 ```cpp
 #include "parse_error.h"
@@ -102,7 +104,7 @@ The AST structure is unchanged. Multi-error recovery is not implemented.
 
 ## Tests
 
-Run focused lexer, parser, truth-table, and NNF tests with:
+Run the lexer, parser, truth-table, NNF, SAT, and graph-coloring tests with:
 
 ```sh
 make test
