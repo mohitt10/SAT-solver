@@ -1,4 +1,4 @@
-#include "sat_types.hpp"
+#include "cnf_structures.hpp"
 
 #include <exception>
 #include <iostream>
@@ -6,8 +6,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-CNF convert_nnf_to_cnf(const NodePtr& root);
 
 class AstBuilder {
 public:

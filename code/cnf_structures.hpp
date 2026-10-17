@@ -8,6 +8,8 @@
 
 using namespace std;
 
+//AST Node declarations
+
 struct VarNode;
 struct NotNode;
 struct AndNode;
@@ -73,10 +75,7 @@ inline NodePtr mkOr(NodePtr a, NodePtr b) {
     return make_shared<OrNode>(move(a), move(b));
 }
 
-// ============================================================================
-// CNF Data Structures (Simplified for Students)
-// ============================================================================
-
+//CNF Data Structures
 class Literal {
     string variable;
     bool negated;
@@ -110,7 +109,6 @@ public:
 };
 
 class Clause {
-    //plan if its worth using set instead of vector for literals. For now, we will just use vector.
     vector<Literal> literals;
 
 public:
@@ -159,8 +157,6 @@ class CNF {
     vector<Clause> clauses;
 
 public:
-    // plan if its worth checking if the clause already exists in the CNF before adding it. For now, we will just add it.
-    // we'll have to compare clauses by their contents, i.e. check if they contain the same literals
     void addClause(Clause clause) {
         clauses.push_back(clause);
     }
@@ -178,10 +174,7 @@ public:
     }
 };
 
-// ============================================================================
-// Solver API Contracts
-// ============================================================================
-
+//Solver API
 struct SolverConfig {
     bool use_unit_prop = true;
     bool use_pure_literal = true;
@@ -194,3 +187,8 @@ struct SolverResult {
     int backtrack_count = 0;
     int decision_count = 0;
 };
+
+
+// Function declarations
+CNF convert_nnf_to_cnf(const NodePtr& root);
+SolverResult solve(CNF initial_cnf, SolverConfig config);

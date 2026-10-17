@@ -1,4 +1,4 @@
-#include "sat_types.hpp"
+#include "cnf_structures.hpp"
 
 #include <stdexcept>
 #include <vector>
@@ -72,7 +72,7 @@ public:
 
 };
 
-} // namespace
+}
 
 CNF convert_nnf_to_cnf(const NodePtr& root) {
     CNF cnf;

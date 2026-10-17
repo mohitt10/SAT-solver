@@ -1,4 +1,4 @@
-#include "sat_types.hpp"
+#include "cnf_structures.hpp"
 
 #include <array>
 #include <exception>
@@ -7,9 +7,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-CNF convert_nnf_to_cnf(const NodePtr& root);
-SolverResult solve(CNF initial_cnf, SolverConfig config);
 
 namespace {
 

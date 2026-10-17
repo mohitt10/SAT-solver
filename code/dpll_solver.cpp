@@ -1,4 +1,4 @@
-#include "sat_types.hpp"
+#include "cnf_structures.hpp"
 #include <chrono>
 #include <iostream>
 
@@ -65,7 +65,6 @@ bool find_pure_literal(CNF cnf, Literal& out_literal) {
                 current_polarity = -1;
             }
             
-            // Using .count() just like in your datamodel.h file
             if (polarity_map.count(var_name) == 0) {
                 polarity_map[var_name] = current_polarity;
             } else {
@@ -76,7 +75,6 @@ bool find_pure_literal(CNF cnf, Literal& out_literal) {
         }
     }
     
-    // Auto loop used here just like cart_main.cpp uses it for unordered_maps
     for (auto entry : polarity_map) {
         string var_name = entry.first;
         int polarity = entry.second;
@@ -94,30 +92,27 @@ bool find_pure_literal(CNF cnf, Literal& out_literal) {
     return false;
 }
 
-// ============================================================================
-// Recursive DPLL Engine
-// ============================================================================
-
+//DPLL Engine
 bool dpll_recursive(CNF cnf, unordered_map<string, bool>& assignments, SolverConfig config, SolverResult& stats) {
 
-    // 1. Base Case: Satisfied
+    // Base Case: satisfied
     if (cnf.isEmpty()) {
         return true;
     }
 
-    // 2. Base Case: Conflict
+    // Base Case: conflict
     vector<Clause> clauses = cnf.getClauses();
     for (int i = 0; i < clauses.size(); i++) {
         if (clauses[i].isEmpty()) {
             stats.backtrack_count++;
-            return false; // Backtrack!
+            return false; 
         }
     }
 
     // Save our current assignments so we can undo them if a branch fails
     unordered_map<string, bool> checkpoint = assignments;
 
-    // --- UNIT PROPAGATION ---
+    // Unit Propagation
     Literal unit_lit;
     while (config.use_unit_prop && find_unit_literal(cnf, unit_lit)) {
         assignments[unit_lit.getVariable()] = !unit_lit.isNegated();
@@ -135,7 +130,7 @@ bool dpll_recursive(CNF cnf, unordered_map<string, bool>& assignments, SolverCon
         }
     }
 
-    // --- PURE LITERAL ELIMINATION ---
+    // Pure Literal Elimination
     Literal pure_lit;
     while (config.use_pure_literal && find_pure_literal(cnf, pure_lit)) {
         assignments[pure_lit.getVariable()] = !pure_lit.isNegated();
@@ -153,7 +148,7 @@ bool dpll_recursive(CNF cnf, unordered_map<string, bool>& assignments, SolverCon
         }
     }
 
-    // --- BRANCHING (GUESSING) ---
+    // Branching: pick a literal from the first clause and try both True and False assignments
     stats.decision_count++;
     
     // Simplest logic possible: get first clause at index 0, get first literal at index 0
@@ -170,7 +165,7 @@ bool dpll_recursive(CNF cnf, unordered_map<string, bool>& assignments, SolverCon
         return true;
     }
 
-    // Guess False (Implicit Backtrack)
+    // Guess False
     assignments[var_name] = false;
     Literal guess_false(var_name, true);
     CNF cnf_if_false = assign_literal(cnf, guess_false);
@@ -184,10 +179,7 @@ bool dpll_recursive(CNF cnf, unordered_map<string, bool>& assignments, SolverCon
     return false;
 }
 
-// ============================================================================
-// Public Entry Point
-// ============================================================================
-
+//Public API
 SolverResult solve(CNF initial_cnf, SolverConfig config) {
     SolverResult result;
     
