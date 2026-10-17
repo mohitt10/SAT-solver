@@ -1,4 +1,4 @@
-#include "cnf_structures.hpp"
+#include "sat_types.hpp"
 
 #include <stdexcept>
 #include <vector>
@@ -70,17 +70,9 @@ public:
         }
     }
 
-    void visit(const ImpliesNode&) override {
-        throw std::invalid_argument("Implication node is not valid in NNF");
-    }
-
-    void visit(const IffNode&) override {
-        throw std::invalid_argument("Biconditional node is not valid in NNF");
-    }
-
 };
 
-}
+} // namespace
 
 CNF convert_nnf_to_cnf(const NodePtr& root) {
     CNF cnf;
