@@ -2,7 +2,7 @@
 #include "parser.h"
 #include "nnf.h"
 #include "truth_table.h"
-#include "code/sat_types.hpp"
+#include "sat_types.hpp"
 #include "graph_coloring.h"
 using namespace std;
 

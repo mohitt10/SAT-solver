@@ -1,6 +1,6 @@
 #pragma once
 
-#include "code/sat_types.hpp"
+#include "sat_types.hpp"
 
 #include <string>
 #include <utility>

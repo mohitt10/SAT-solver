@@ -104,6 +104,26 @@ public:
 struct SolverConfig {
     bool use_unit_prop = true;
     bool use_pure_literal = true;
+    bool record_trace = false;
+    size_t trace_limit = 10000;
+};
+
+enum class SolverEventType {
+    Decision,
+    UnitPropagation,
+    PureLiteral,
+    Conflict,
+    Backtrack,
+    Result
+};
+
+struct SolverTraceEvent {
+    SolverEventType type = SolverEventType::Result;
+    std::string variable;
+    bool value = false;
+    int decision_level = 0;
+    std::vector<Literal> clause;
+    std::vector<std::pair<std::string, bool>> undone_assignments;
 };
 
 struct SolverResult {
@@ -112,6 +132,8 @@ struct SolverResult {
     double total_execution_time_ms = 0.0;
     int backtrack_count = 0;
     int decision_count = 0;
+    std::vector<SolverTraceEvent> trace;
+    bool trace_truncated = false;
 };
 
 // --- Integration & Pipeline Structs ---

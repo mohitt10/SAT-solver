@@ -1,6 +1,6 @@
 #include "graph_coloring.h"
 
-#include "code/sat_types.hpp"
+#include "sat_types.hpp"
 #include "nnf.h"
 #include "parser.h"
 
