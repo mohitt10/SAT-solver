@@ -6,3 +6,6 @@
 /sat_solver_gui.exe
 /performance
 /performance.exe
+/sat_solver_backend
+/sat_solver_backend.exe
+__pycache__/

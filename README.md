@@ -1,5 +1,18 @@
 # SAT-SOLVER — Worklets 1–3
 
+## Project layout
+
+```text
+apps/                 Command-line, GUI, and benchmark entry points
+docs/                 Project documentation
+include/sat_solver/   Public headers
+src/frontend/         Lexer, parser, truth-table, and NNF implementation
+src/graph/            Graph-colouring integration
+src/sat/              CNF encoders and DPLL solver
+tests/                Test programs
+build/                Generated objects, libraries, and test executables
+```
+
 Worklet 1 provides the propositional-logic front end:
 
 ```text
@@ -27,6 +40,14 @@ Build and run the command-line SAT solver:
 ```sh
 make
 ./sat_solver "(A & ~B) -> C"
+```
+
+On Windows with MinGW, use `mingw32-make` to build and run the generated
+executable from PowerShell:
+
+```powershell
+mingw32-make
+.\sat_solver.exe "(A & ~B) -> C"
 ```
 
 The output includes the formula in NNF, its SAT/UNSAT result, a satisfying
@@ -74,12 +95,16 @@ make gui
 ./sat_solver_gui
 ```
 
+On Windows with MinGW and a Qt installation configured for `pkg-config`, run
+`mingw32-make gui` and then `.\sat_solver_gui.exe`.
+
 At launch, the GUI clears inherited `GTK_PATH` and `GIO_MODULE_DIR` values to
 avoid incompatible GTK modules in environments such as the VS Code Snap
 terminal.
 
 The default Qt package is `Qt6Widgets`. To build with a Qt 5 installation,
-specify `make gui QT_PACKAGE=Qt5Widgets`.
+specify `make gui QT_PACKAGE=Qt5Widgets` (or
+`mingw32-make gui QT_PACKAGE=Qt5Widgets` on Windows).
 
 ## Encoder benchmark
 
@@ -92,13 +117,15 @@ make benchmark
 
 It reports CNF and solver statistics for the supplied graph, comparing both
 pipelines. It is a standalone benchmark, separate from the interactive GUI.
+On Windows with MinGW, use `mingw32-make benchmark` and run
+`.\performance.exe`.
 
 ## Use from another Worklet 1 component
 
 ```cpp
-#include "nnf.h"
-#include "parser.h"
-#include "truth_table.h"
+#include <sat_solver/nnf.h>
+#include <sat_solver/parser.h>
+#include <sat_solver/truth_table.h>
 
 NodePtr parsed = parseFormula("(A & ~B) -> C");
 NNFConverter converter;
@@ -123,8 +150,8 @@ command-line solver reports these errors and exits unsuccessfully. A caller
 can inspect the error details like this:
 
 ```cpp
-#include "parse_error.h"
-#include "parser.h"
+#include <sat_solver/parse_error.h>
+#include <sat_solver/parser.h>
 
 try {
     (void)parseFormula(user_input);
@@ -143,3 +170,5 @@ Run the lexer, parser, truth-table, NNF/CNF, SAT, and graph-colouring tests with
 ```sh
 make test
 ```
+
+On Windows with MinGW, run `mingw32-make test`.
