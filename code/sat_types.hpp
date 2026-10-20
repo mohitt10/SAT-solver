@@ -1,109 +1,105 @@
 #pragma once
 
-#include "ast.h"
+#include "ast.h" // Includes Visitor, ASTNode, etc. from Worklet 1
 
-#include <cstddef>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
+
+using namespace std;
+
+// --- CNF Data Structures ---
 
 class Literal {
-public:
-    Literal() = default;
-    Literal(std::string variable, bool negated)
-        : variable_(std::move(variable)), negated_(negated) {}
+    string variable;
+    bool negated = false;
 
-    const std::string& getVariable() const {
-        return variable_;
+public:
+    Literal() = default; 
+    
+    Literal(string var, bool is_negated) {
+        variable = move(var);
+        negated = is_negated;
     }
 
-    bool isNegated() const {
-        return negated_;
+    // Marked const so tseitin_converter can read from const references
+    const string& getVariable() const { 
+        return variable; 
+    }
+    
+    // Marked const so tseitin_converter can read from const references
+    bool isNegated() const { 
+        return negated; 
     }
 
     bool isEqual(const Literal& other) const {
-        return variable_ == other.variable_ && negated_ == other.negated_;
+        return variable == other.variable && negated == other.negated;
     }
 
     bool isOpposite(const Literal& other) const {
-        return variable_ == other.variable_ && negated_ != other.negated_;
+        return variable == other.variable && negated != other.negated;
     }
-
-private:
-    std::string variable_;
-    bool negated_ = false;
 };
 
 class Clause {
+    vector<Literal> literals;
+
 public:
-    void addLiteral(const Literal& literal) {
-        for (const Literal& current : literals_) {
-            if (current.isEqual(literal)) {
-                return;
+    void addLiteral(const Literal& lit) {
+        for (int i = 0; i < literals.size(); i++) {
+            if (literals[i].isEqual(lit)) {
+                return; 
             }
         }
-        literals_.push_back(literal);
+        literals.push_back(lit);
     }
 
-    const std::vector<Literal>& getLiterals() const {
-        return literals_;
+    const vector<Literal>& getLiterals() const { 
+        return literals; 
     }
 
-    bool containsLiteral(const Literal& literal) const {
-        for (const Literal& current : literals_) {
-            if (current.isEqual(literal)) {
+    bool containsLiteral(const Literal& lit) const {
+        for (int i = 0; i < literals.size(); i++) {
+            if (literals[i].isEqual(lit)) {
                 return true;
             }
         }
         return false;
     }
 
-    bool isEmpty() const {
-        return literals_.empty();
+    bool isEmpty() const { 
+        return literals.empty(); 
     }
-
-    std::size_t size() const {
-        return literals_.size();
+    
+    int size() const { 
+        return literals.size(); 
     }
-
-    bool isTautology() const {
-        for (std::size_t i = 0; i < literals_.size(); ++i) {
-            for (std::size_t j = i + 1; j < literals_.size(); ++j) {
-                if (literals_[i].isOpposite(literals_[j])) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-private:
-    std::vector<Literal> literals_;
 };
 
 class CNF {
+    vector<Clause> clauses;
+
 public:
     void addClause(const Clause& clause) {
-        clauses_.push_back(clause);
+        clauses.push_back(clause);
     }
 
-    const std::vector<Clause>& getClauses() const {
-        return clauses_;
+    const vector<Clause>& getClauses() const { 
+        return clauses; 
     }
 
-    bool isEmpty() const {
-        return clauses_.empty();
+    bool isEmpty() const { 
+        return clauses.empty(); 
     }
-
-    std::size_t size() const {
-        return clauses_.size();
+    
+    int size() const { 
+        return clauses.size(); 
     }
-
-private:
-    std::vector<Clause> clauses_;
 };
+
+// --- Solver API & Configurations ---
 
 struct SolverConfig {
     bool use_unit_prop = true;
@@ -112,11 +108,13 @@ struct SolverConfig {
 
 struct SolverResult {
     bool is_sat = false;
-    std::unordered_map<std::string, bool> final_assignments;
+    unordered_map<string, bool> final_assignments;
     double total_execution_time_ms = 0.0;
     int backtrack_count = 0;
     int decision_count = 0;
 };
+
+// --- Integration & Pipeline Structs ---
 
 enum class CnfPipeline {
     Nnf,
@@ -125,11 +123,11 @@ enum class CnfPipeline {
 
 struct CnfEncoding {
     CNF cnf;
-    std::unordered_set<std::string> original_variables;
+    unordered_set<string> original_variables;
 };
 
+// --- Function Declarations (Must be at the very bottom) ---
+
 CNF convert_nnf_to_cnf(const NodePtr& root);
-CnfEncoding convert_formula_to_cnf(
-    const NodePtr& root,
-    CnfPipeline pipeline);
+CnfEncoding convert_formula_to_cnf(const NodePtr& root, CnfPipeline pipeline);
 SolverResult solve(CNF initial_cnf, SolverConfig config);

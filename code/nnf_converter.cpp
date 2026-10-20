@@ -63,13 +63,12 @@ public:
                     combined.addLiteral(literal);
                 }
 
-                if (!combined.isTautology()) {
-                    clauses.push_back(combined);
-                }
+                clauses.push_back(combined);
             }
         }
     }
 
+    // Required by ast.h Visitor interface, even if NNF doesn't use them
     void visit(const ImpliesNode&) override {
         throw std::invalid_argument("Implication node is not valid in NNF");
     }
@@ -77,10 +76,9 @@ public:
     void visit(const IffNode&) override {
         throw std::invalid_argument("Biconditional node is not valid in NNF");
     }
-
 };
 
-}
+} // namespace
 
 CNF convert_nnf_to_cnf(const NodePtr& root) {
     CNF cnf;
