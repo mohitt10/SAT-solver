@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -117,5 +118,18 @@ struct SolverResult {
     int decision_count = 0;
 };
 
+enum class CnfPipeline {
+    Nnf,
+    Tseitin
+};
+
+struct CnfEncoding {
+    CNF cnf;
+    std::unordered_set<std::string> original_variables;
+};
+
 CNF convert_nnf_to_cnf(const NodePtr& root);
+CnfEncoding convert_formula_to_cnf(
+    const NodePtr& root,
+    CnfPipeline pipeline);
 SolverResult solve(CNF initial_cnf, SolverConfig config);

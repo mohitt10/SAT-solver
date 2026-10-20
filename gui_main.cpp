@@ -2,8 +2,10 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
@@ -11,6 +13,7 @@
 #include <QPen>
 #include <QPushButton>
 #include <QSizePolicy>
+#include <QStackedWidget>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -19,8 +22,12 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <sstream>
 #include <utility>
 #include <vector>
+
+#include "parse_error.h"
+#include "parser.h"
 
 namespace {
 
@@ -201,19 +208,35 @@ private:
 class GraphColoringWindow : public QWidget {
 public:
     GraphColoringWindow() {
-        setWindowTitle("SAT Solver — Graph Coloring");
-        resize(800, 620);
+        setWindowTitle("SAT Solver");
+        resize(860, 680);
 
-        auto* title = new QLabel("Graph Coloring Solver");
+        auto* title = new QLabel("SAT Solver");
         QFont title_font = title->font();
         title_font.setPointSize(title_font.pointSize() + 5);
         title_font.setBold(true);
         title->setFont(title_font);
 
-        auto* instructions = new QLabel(
-            "Choose the number of vertices and colours, then click two vertices "
-            "to add an edge. Right-click to cancel a selection.");
+        auto* instructions = new QLabel;
         instructions->setWordWrap(true);
+
+        auto* mode_label = new QLabel("Problem:");
+        mode_ = new QComboBox;
+        mode_->addItem("Graph coloring");
+        mode_->addItem("Formula SAT");
+
+        auto* pipeline_label = new QLabel("CNF pipeline:");
+        pipeline_ = new QComboBox;
+        pipeline_->addItem("NNF → CNF");
+        pipeline_->addItem("Tseitin");
+
+        auto* top_toolbar = new QHBoxLayout;
+        top_toolbar->addWidget(mode_label);
+        top_toolbar->addWidget(mode_);
+        top_toolbar->addSpacing(16);
+        top_toolbar->addWidget(pipeline_label);
+        top_toolbar->addWidget(pipeline_);
+        top_toolbar->addStretch();
 
         auto* vertex_label = new QLabel("Vertices:");
         vertex_count_ = new QSpinBox;
@@ -225,35 +248,65 @@ public:
         color_count_->setRange(1, static_cast<int>(COLOR_PALETTE.size()));
         color_count_->setValue(3);
 
-        auto* solve_button = new QPushButton("Solve coloring");
+        auto* solve_graph_button = new QPushButton("Solve coloring");
         auto* clear_button = new QPushButton("Clear edges");
-        auto* toolbar = new QHBoxLayout;
-        toolbar->addWidget(vertex_label);
-        toolbar->addWidget(vertex_count_);
-        toolbar->addSpacing(16);
-        toolbar->addWidget(color_label);
-        toolbar->addWidget(color_count_);
-        toolbar->addStretch();
-        toolbar->addWidget(clear_button);
-        toolbar->addWidget(solve_button);
+        auto* graph_toolbar = new QHBoxLayout;
+        graph_toolbar->addWidget(vertex_label);
+        graph_toolbar->addWidget(vertex_count_);
+        graph_toolbar->addSpacing(16);
+        graph_toolbar->addWidget(color_label);
+        graph_toolbar->addWidget(color_count_);
+        graph_toolbar->addStretch();
+        graph_toolbar->addWidget(clear_button);
+        graph_toolbar->addWidget(solve_graph_button);
 
         canvas_ = new GraphCanvas;
         canvas_->setVertexCount(vertex_count_->value());
 
-        status_ = new QLabel("Click two vertices to add an edge, then solve.");
-        status_->setWordWrap(true);
-        status_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        auto* graph_page = new QWidget;
+        auto* graph_layout = new QVBoxLayout(graph_page);
+        graph_layout->setContentsMargins(0, 0, 0, 0);
+        graph_layout->addLayout(graph_toolbar);
+        graph_layout->addWidget(canvas_, 1);
+        graph_status_ =
+            new QLabel("Click two vertices to add an edge, then solve.");
+        graph_status_->setWordWrap(true);
+        graph_status_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        graph_layout->addWidget(graph_status_);
+
+        auto* formula_page = new QWidget;
+        auto* formula_layout = new QVBoxLayout(formula_page);
+        formula_layout->setContentsMargins(0, 0, 0, 0);
+        formula_layout->addWidget(new QLabel(
+            "Enter a propositional formula using ~, &, |, ->, and <->."));
+        formula_input_ = new QLineEdit;
+        formula_input_->setPlaceholderText("(A & ~B) -> C");
+        formula_layout->addWidget(formula_input_);
+        formula_status_ = new QLabel("Enter a formula to check its syntax.");
+        formula_status_->setWordWrap(true);
+        formula_layout->addWidget(formula_status_);
+        auto* solve_formula_button = new QPushButton("Solve formula");
+        formula_layout->addWidget(solve_formula_button, 0, Qt::AlignLeft);
+        formula_result_ = new QLabel;
+        formula_result_->setTextFormat(Qt::PlainText);
+        formula_result_->setWordWrap(true);
+        formula_result_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        formula_layout->addWidget(formula_result_);
+
+        pages_ = new QStackedWidget;
+        pages_->addWidget(graph_page);
+        pages_->addWidget(formula_page);
 
         auto* layout = new QVBoxLayout(this);
         layout->addWidget(title);
         layout->addWidget(instructions);
-        layout->addLayout(toolbar);
-        layout->addWidget(canvas_, 1);
-        layout->addWidget(status_);
+        layout->addLayout(top_toolbar);
+        layout->addWidget(pages_, 1);
+        updateModeText(0, instructions);
 
         canvas_->setGraphChangedHandler([this]() {
             clearSolution();
-            status_->setText(QString("Graph updated: %1 edge(s).")
+            graph_status_->setText(QString("Graph updated: %1 edge(s).")
                                  .arg(static_cast<qulonglong>(
                                      canvas_->edges().size())));
         });
@@ -261,7 +314,7 @@ public:
                          this, [this](int count) {
             canvas_->setVertexCount(count);
             clearSolution();
-            status_->setText(
+            graph_status_->setText(
                 QString("Graph has %1 vertices and %2 edge(s).")
                     .arg(count)
                     .arg(static_cast<qulonglong>(canvas_->edges().size())));
@@ -269,45 +322,162 @@ public:
         QObject::connect(color_count_, qOverload<int>(&QSpinBox::valueChanged),
                          this, [this](int) {
             clearSolution();
-            status_->setText("Colour count changed; solve the graph again.");
+            graph_status_->setText("Colour count changed; solve the graph again.");
+        });
+        QObject::connect(pipeline_, qOverload<int>(&QComboBox::currentIndexChanged),
+                         this, [this](int) {
+            clearSolution();
+            graph_status_->setText("CNF pipeline changed; solve again.");
+            formula_result_->clear();
+        });
+        QObject::connect(mode_, qOverload<int>(&QComboBox::currentIndexChanged),
+                         this, [this, instructions](int index) {
+            pages_->setCurrentIndex(index);
+            updateModeText(index, instructions);
         });
         QObject::connect(clear_button, &QPushButton::clicked, this, [this]() {
             canvas_->clearEdges();
             clearSolution();
-            status_->setText("All edges cleared.");
+            graph_status_->setText("All edges cleared.");
         });
-        QObject::connect(solve_button, &QPushButton::clicked, this, [this]() {
+        QObject::connect(solve_graph_button, &QPushButton::clicked,
+                         this, [this]() {
             solveGraph();
+        });
+        QObject::connect(formula_input_, &QLineEdit::textChanged,
+                         this, [this](const QString& text) {
+            formula_result_->clear();
+            validateFormula(text);
+        });
+        QObject::connect(solve_formula_button, &QPushButton::clicked,
+                         this, [this]() {
+            solveFormula();
         });
     }
 
 private:
+    QComboBox* mode_ = nullptr;
     QSpinBox* vertex_count_ = nullptr;
     QSpinBox* color_count_ = nullptr;
+    QComboBox* pipeline_ = nullptr;
+    QStackedWidget* pages_ = nullptr;
     GraphCanvas* canvas_ = nullptr;
-    QLabel* status_ = nullptr;
+    QLineEdit* formula_input_ = nullptr;
+    QLabel* graph_status_ = nullptr;
+    QLabel* formula_status_ = nullptr;
+    QLabel* formula_result_ = nullptr;
+
+    CnfPipeline selectedPipeline() const {
+        return pipeline_->currentIndex() == 1
+            ? CnfPipeline::Tseitin
+            : CnfPipeline::Nnf;
+    }
+
+    void updateModeText(int index, QLabel* instructions) {
+        if (index == 0) {
+            instructions->setText(
+                "Choose the number of vertices and colours, then click two "
+                "vertices to add an edge. Right-click to cancel a selection.");
+            setWindowTitle("SAT Solver — Graph Coloring");
+        } else {
+            instructions->setText(
+                "Enter any propositional formula and solve it using the "
+                "selected CNF pipeline.");
+            setWindowTitle("SAT Solver — Formula SAT");
+        }
+    }
 
     void clearSolution() {
         canvas_->clearColoring();
-        status_->setStyleSheet(QString());
+        graph_status_->setStyleSheet(QString());
+    }
+
+    void validateFormula(const QString& text) {
+        if (text.trimmed().isEmpty()) {
+            formula_status_->setStyleSheet(QString());
+            formula_status_->setText("Enter a formula to check its syntax.");
+            return;
+        }
+        try {
+            (void)parseFormula(text.toStdString());
+            formula_status_->setStyleSheet("QLabel { color: #207245; }");
+            formula_status_->setText("Syntax valid.");
+        } catch (const ParseError& error) {
+            formula_status_->setStyleSheet("QLabel { color: #b42318; }");
+            formula_status_->setText(
+                QString("Syntax error at line %1, column %2: %3")
+                    .arg(static_cast<qulonglong>(error.line))
+                    .arg(static_cast<qulonglong>(error.column))
+                    .arg(QString::fromStdString(error.message)));
+        } catch (const std::exception& error) {
+            formula_status_->setStyleSheet("QLabel { color: #b42318; }");
+            formula_status_->setText(
+                QString("Unable to check formula: %1").arg(error.what()));
+        }
+    }
+
+    void solveFormula() {
+        const QString text = formula_input_->text();
+        if (text.trimmed().isEmpty()) {
+            validateFormula(text);
+            return;
+        }
+
+        try {
+            const NodePtr formula = parseFormula(text.toStdString());
+            const CnfEncoding encoding =
+                convert_formula_to_cnf(formula, selectedPipeline());
+            const SolverResult result = solve(encoding.cnf, SolverConfig{});
+
+            if (!result.is_sat) {
+                formula_result_->setText("Result: UNSAT");
+                return;
+            }
+
+            std::vector<std::string> variables(
+                encoding.original_variables.begin(),
+                encoding.original_variables.end());
+            std::sort(variables.begin(), variables.end());
+            std::ostringstream output;
+            output << "Result: SAT\nSatisfying assignment:\n";
+            for (const std::string& variable : variables) {
+                const auto value = result.final_assignments.find(variable);
+                const bool assigned_value =
+                    value != result.final_assignments.end() && value->second;
+                output << "  " << variable << " = "
+                       << (assigned_value ? "true" : "false") << '\n';
+            }
+            output << "Decisions: " << result.decision_count
+                   << " | Backtracks: " << result.backtrack_count
+                   << " | Solver time: " << result.total_execution_time_ms
+                   << " ms";
+            formula_result_->setText(QString::fromStdString(output.str()));
+        } catch (const ParseError&) {
+            validateFormula(text);
+            formula_result_->clear();
+        } catch (const std::exception& error) {
+            formula_result_->setText(
+                QString("Unable to solve formula: %1").arg(error.what()));
+        }
     }
 
     void solveGraph() {
         try {
             const GraphColoringResult result = solve_graph_coloring(
-                vertex_count_->value(), color_count_->value(), canvas_->edges());
+                vertex_count_->value(), color_count_->value(), canvas_->edges(),
+                selectedPipeline());
             if (!result.is_satisfiable) {
                 canvas_->clearColoring();
-                status_->setStyleSheet("QLabel { color: #b42318; }");
-                status_->setText(
+                graph_status_->setStyleSheet("QLabel { color: #b42318; }");
+                graph_status_->setText(
                     QString("No valid coloring exists with %1 colour(s).")
                         .arg(color_count_->value()));
                 return;
             }
 
             canvas_->setColoring(result.vertex_colors);
-            status_->setStyleSheet("QLabel { color: #207245; }");
-            status_->setText(
+            graph_status_->setStyleSheet("QLabel { color: #207245; }");
+            graph_status_->setText(
                 QString("Valid coloring found. Decisions: %1  |  Backtracks: %2"
                         "  |  Solver time: %3 ms")
                     .arg(result.decision_count)
@@ -315,8 +485,8 @@ private:
                     .arg(result.solver_time_ms, 0, 'f', 3));
         } catch (const std::exception& error) {
             canvas_->clearColoring();
-            status_->setStyleSheet("QLabel { color: #b42318; }");
-            status_->setText(
+            graph_status_->setStyleSheet("QLabel { color: #b42318; }");
+            graph_status_->setText(
                 QString("Unable to solve graph: %1").arg(error.what()));
         }
     }

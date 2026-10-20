@@ -32,6 +32,17 @@ make
 The output includes the formula in NNF, its SAT/UNSAT result, a satisfying
 assignment when one exists, and solver statistics.
 
+Choose direct Tseitin encoding instead of NNF conversion and distribution
+with:
+
+```sh
+./sat_solver --pipeline tseitin "(A <-> B) -> (C | ~A)"
+```
+
+The default is `--pipeline nnf`. The `--truth-table` option can be combined
+with either pipeline. Tseitin auxiliary variables are omitted from the printed
+satisfying assignment.
+
 Generate and classify a truth table as well:
 
 ```sh
@@ -41,13 +52,20 @@ Generate and classify a truth table as well:
 Truth-table generation is opt-in; the engine guards against formulas with more
 than 24 distinct variables by default.
 
-## Graph-coloring GUI
+## GUI
 
-The Qt Widgets GUI lets you choose a vertex and colour count, add graph edges by
-clicking two vertices, and ask the SAT solver for a valid colouring. A
-satisfiable result is shown directly on the graph; unsatisfiable graphs are
-reported in the status area. Right-click to cancel an in-progress edge, or use
-**Clear edges** to start over.
+The GUI supports two problem modes:
+
+- **Graph coloring**: choose vertices and colours, then add edges on the canvas.
+- **Formula SAT**: enter any propositional formula using `~`, `&`, `|`, `->`,
+  and `<->`. Syntax is checked as you type; select a CNF pipeline and solve to
+  see SAT/UNSAT, a satisfying assignment, and solver statistics.
+
+Both modes let you choose the NNF-to-CNF or Tseitin pipeline.
+
+For graph coloring, a satisfying result is shown directly on the graph;
+unsatisfiable graphs are reported in the status area. Right-click to cancel an
+in-progress edge, or use **Clear edges** to start over.
 
 Install Qt 6 Widgets and `pkg-config`, then build and launch with:
 
@@ -72,8 +90,8 @@ make benchmark
 ./performance
 ```
 
-It reports CNF and solver statistics for the supplied graph. It is a
-standalone benchmark, separate from the interactive GUI.
+It reports CNF and solver statistics for the supplied graph, comparing both
+pipelines. It is a standalone benchmark, separate from the interactive GUI.
 
 ## Use from another Worklet 1 component
 

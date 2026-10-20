@@ -1,5 +1,7 @@
 #pragma once
 
+#include "code/sat_types.hpp"
+
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,4 +39,5 @@ struct GraphColoringResult {
 GraphColoringResult solve_graph_coloring(
     int vertex_count,
     int color_count,
-    const std::vector<std::pair<int, int>>& edges);
+    const std::vector<std::pair<int, int>>& edges,
+    CnfPipeline pipeline = CnfPipeline::Nnf);

@@ -48,21 +48,46 @@ private:
 
 int main(int argc, char* argv[]) {
     bool show_truth_table = false;
-    int formula_index = 1;
+    CnfPipeline pipeline = CnfPipeline::Nnf;
+    string formula;
+    bool have_formula = false;
 
-    if (argc > 1 && string(argv[1]) == "--truth-table") {
-        show_truth_table = true;
-        formula_index = 2;
+    for (int index = 1; index < argc; ++index) {
+        const string argument = argv[index];
+        if (argument == "--truth-table") {
+            show_truth_table = true;
+        } else if (argument == "--pipeline") {
+            if (index + 1 >= argc) {
+                cerr << "Option --pipeline requires nnf or tseitin.\n";
+                return 2;
+            }
+            const string choice = argv[++index];
+            if (choice == "nnf") {
+                pipeline = CnfPipeline::Nnf;
+            } else if (choice == "tseitin") {
+                pipeline = CnfPipeline::Tseitin;
+            } else {
+                cerr << "Unknown pipeline '" << choice
+                     << "'; choose nnf or tseitin.\n";
+                return 2;
+            }
+        } else if (!have_formula) {
+            formula = argument;
+            have_formula = true;
+        } else {
+            cerr << "Only one formula argument is allowed.\n";
+            return 2;
+        }
     }
 
-    if (argc != formula_index + 1) {
+    if (!have_formula) {
         cerr << "Usage: " << argv[0]
-                  << " [--truth-table] \"FORMULA\"\n";
+             << " [--truth-table] [--pipeline nnf|tseitin] \"FORMULA\"\n";
         return 2;
     }
 
     try {
-        NodePtr parsed = parseFormula(argv[formula_index]);
+        NodePtr parsed = parseFormula(formula);
 
         if (show_truth_table) {
             TruthTableEngine engine;
@@ -72,21 +97,27 @@ int main(int argc, char* argv[]) {
                       << to_string(engine.classify(table)) << '\n';
         }
 
-        NNFConverter converter;
-        NodePtr nnf = converter.convert(*parsed);
-        FormulaFormatter formatter;
-        cout << "NNF: " << formatter.format(*nnf) << '\n';
+        if (pipeline == CnfPipeline::Nnf) {
+            NNFConverter converter;
+            NodePtr nnf = converter.convert(*parsed);
+            FormulaFormatter formatter;
+            cout << "NNF: " << formatter.format(*nnf) << '\n';
+        } else {
+            cout << "CNF pipeline: Tseitin\n";
+        }
 
-        CNF cnf = convert_nnf_to_cnf(nnf);
+        const CnfEncoding encoding = convert_formula_to_cnf(parsed, pipeline);
         SolverConfig config;
-        SolverResult result = solve(cnf, config);
+        SolverResult result = solve(encoding.cnf, config);
 
         cout << "SAT result: " << (result.is_sat ? "SAT" : "UNSAT") << '\n';
         if (result.is_sat) {
             cout << "Assignment:\n";
             for (const auto& assignment : result.final_assignments) {
-                cout << "  " << assignment.first << " = "
-                     << (assignment.second ? "true" : "false") << '\n';
+                if (encoding.original_variables.count(assignment.first) != 0) {
+                    cout << "  " << assignment.first << " = "
+                         << (assignment.second ? "true" : "false") << '\n';
+                }
             }
         }
         cout << "Decisions: " << result.decision_count << '\n'

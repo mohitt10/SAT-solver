@@ -148,16 +148,15 @@ bool Encoder::checkresult(
 GraphColoringResult solve_graph_coloring(
     int vertex_count,
     int color_count,
-    const std::vector<std::pair<int, int>>& edges) {
+    const std::vector<std::pair<int, int>>& edges,
+    CnfPipeline pipeline) {
     Encoder encoder(vertex_count, color_count, edges);
     encoder.build_initial_string();
     encoder.addedgeconstraint();
 
     const NodePtr parsed = parseFormula(encoder.getencodedstring());
-    NNFConverter converter;
-    const NodePtr nnf = converter.convert(*parsed);
-    const CNF cnf = convert_nnf_to_cnf(nnf);
-    const SolverResult solver_result = solve(cnf, SolverConfig{});
+    const CnfEncoding encoding = convert_formula_to_cnf(parsed, pipeline);
+    const SolverResult solver_result = solve(encoding.cnf, SolverConfig{});
 
     GraphColoringResult result;
     result.is_satisfiable = solver_result.is_sat;
@@ -167,9 +166,12 @@ GraphColoringResult solve_graph_coloring(
 
     if (solver_result.is_sat) {
         std::vector<std::pair<std::string, int>> assignments;
-        assignments.reserve(solver_result.final_assignments.size());
+        assignments.reserve(encoding.original_variables.size());
         for (const auto& assignment : solver_result.final_assignments) {
-            assignments.emplace_back(assignment.first, assignment.second ? 1 : 0);
+            if (encoding.original_variables.count(assignment.first) != 0) {
+                assignments.emplace_back(
+                    assignment.first, assignment.second ? 1 : 0);
+            }
         }
         if (!encoder.checkresult(assignments)) {
             throw std::runtime_error(

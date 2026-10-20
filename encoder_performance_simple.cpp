@@ -11,7 +11,10 @@ class PerformanceTester {
     int no_of_nodes;
     int no_of_col;
     vector<pair<int, int>> edges;
-    double previous_time[4] = {-1, -1, -1, -1};
+    double previous_time[2][4] = {
+        {-1, -1, -1, -1},
+        {-1, -1, -1, -1}
+    };
     double previous_table_time = -1;
 
     public:
@@ -54,75 +57,92 @@ class PerformanceTester {
             end = chrono::steady_clock::now();
             double parsing_time = time_ms(start, end);
 
-            start = chrono::steady_clock::now();
-            NNFConverter converter;
-            NodePtr nnf = converter.convert(*parsed);
-            CNF cnf = convert_nnf_to_cnf(nnf);
-            end = chrono::steady_clock::now();
-            double cnf_time = time_ms(start, end);
-
-            int clauses = cnf.size();
-            int literals = 0;
-            for(auto clause: cnf.getClauses()) {
-                literals += clause.size();
-            }
-
             cout << "\n-----------------------------------------\n";
             cout << "Nodes: " << n << "  Colours: " << no_of_col
                  << "  Variables: " << n * no_of_col << "\n";
-            cout << "Edges: " << current_edges.size() << "  Clauses: " << clauses
-                 << "  Literals: " << literals << "\n";
+            cout << "Edges: " << current_edges.size() << "\n";
             cout << "Formula length: " << e.getencodedstring().size() << " characters\n";
             cout << "Encoding time: " << encoding_time << " ms\n";
             cout << "Parsing time: " << parsing_time << " ms\n";
-            cout << "CNF conversion time: " << cnf_time << " ms\n";
+            const array<CnfPipeline, 2> pipelines = {
+                CnfPipeline::Nnf, CnfPipeline::Tseitin
+            };
+            const array<const char*, 2> pipeline_names = {"NNF", "Tseitin"};
+            for (size_t pipeline_index = 0;
+                 pipeline_index < pipelines.size();
+                 ++pipeline_index) {
+                start = chrono::steady_clock::now();
+                const CnfEncoding encoding =
+                    convert_formula_to_cnf(parsed, pipelines[pipeline_index]);
+                end = chrono::steady_clock::now();
+                const double cnf_time = time_ms(start, end);
+                const CNF& cnf = encoding.cnf;
 
-            cout << "\nDPLL comparison:\n";
-            cout << left << setw(12) << "Unit prop"
-                 << setw(14) << "Pure literal"
-                 << setw(12) << "Time(ms)"
-                 << setw(13) << "Change(%)"
-                 << setw(9) << "Result"
-                 << setw(11) << "Decisions"
-                 << "Backtracks\n";
-
-            for(int i = 0; i < 4; i++) {
-                SolverResult result = solve(cnf, configs[i]);
-                double current_time = result.total_execution_time_ms;
-
-                cout << left << setw(12) << (configs[i].use_unit_prop ? "ON" : "OFF")
-                     << setw(14) << (configs[i].use_pure_literal ? "ON" : "OFF")
-                     << setw(12) << current_time;
-
-                if(previous_time[i] > 0) {
-                    double change = (current_time - previous_time[i]) * 100.0 / previous_time[i];
-                    cout << setw(13) << change;
-                }
-                else {
-                    cout << setw(13) << "-";
+                int literals = 0;
+                for (const Clause& clause : cnf.getClauses()) {
+                    literals += static_cast<int>(clause.size());
                 }
 
-                cout << setw(9) << (result.is_sat ? "SAT" : "UNSAT")
-                     << setw(11) << result.decision_count
-                     << result.backtrack_count << "\n";
-                previous_time[i] = current_time;
+                cout << "\n" << pipeline_names[pipeline_index]
+                     << " pipeline: " << cnf.size() << " clauses, "
+                     << literals << " literals, conversion "
+                     << cnf_time << " ms\n";
+                cout << "DPLL comparison:\n";
+                cout << left << setw(12) << "Unit prop"
+                     << setw(14) << "Pure literal"
+                     << setw(12) << "Time(ms)"
+                     << setw(13) << "Change(%)"
+                     << setw(9) << "Result"
+                     << setw(11) << "Decisions"
+                     << "Backtracks\n";
 
-                if(n == no_of_nodes && i == 3) {
-                    if(result.is_sat) {
-                        vector<pair<string, int>> values;
-                        for(auto &[s, v]: result.final_assignments) {
-                            values.push_back({s, v});
-                        }
+                for(int i = 0; i < 4; i++) {
+                    SolverResult result = solve(cnf, configs[i]);
+                    const double current_time = result.total_execution_time_ms;
 
-                        vector<int> assignment = e.decoderesult(values);
-                        cout << "\nDecoded graph colouring:\n";
-                        for(size_t j = 0; j < assignment.size(); j++) {
-                            cout << "Node " << j + 1 << " -> Colour " << assignment[j] << "\n";
-                        }
-                        cout << "Valid colouring: " << (e.checkresult(values) ? "YES" : "NO") << "\n";
+                    cout << left << setw(12)
+                         << (configs[i].use_unit_prop ? "ON" : "OFF")
+                         << setw(14)
+                         << (configs[i].use_pure_literal ? "ON" : "OFF")
+                         << setw(12) << current_time;
+
+                    if(previous_time[pipeline_index][i] > 0) {
+                        const double change =
+                            (current_time - previous_time[pipeline_index][i]) *
+                            100.0 / previous_time[pipeline_index][i];
+                        cout << setw(13) << change;
+                    } else {
+                        cout << setw(13) << "-";
                     }
-                    else {
-                        cout << "No Valid colouring\n";
+
+                    cout << setw(9) << (result.is_sat ? "SAT" : "UNSAT")
+                         << setw(11) << result.decision_count
+                         << result.backtrack_count << "\n";
+                    previous_time[pipeline_index][i] = current_time;
+
+                    if(n == no_of_nodes && i == 3 &&
+                       pipeline_index + 1 == pipelines.size()) {
+                        if(result.is_sat) {
+                            vector<pair<string, int>> values;
+                            for(const auto& [name, value] :
+                                result.final_assignments) {
+                                if (encoding.original_variables.count(name) != 0) {
+                                    values.push_back({name, value ? 1 : 0});
+                                }
+                            }
+
+                            const vector<int> assignment = e.decoderesult(values);
+                            cout << "\nDecoded graph colouring:\n";
+                            for(size_t j = 0; j < assignment.size(); j++) {
+                                cout << "Node " << j + 1 << " -> Colour "
+                                     << assignment[j] << "\n";
+                            }
+                            cout << "Valid colouring: "
+                                 << (e.checkresult(values) ? "YES" : "NO")
+                                 << "\n";
+                        } else {
+                            cout << "No Valid colouring\n";
+                        }
                     }
                 }
             }

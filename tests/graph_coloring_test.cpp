@@ -37,19 +37,37 @@ bool run_case(
     int vertex_count,
     int color_count,
     const std::vector<std::pair<int, int>>& edges,
-    bool expected_satisfiable) {
+    bool expected_satisfiable,
+    CnfPipeline pipeline) {
     try {
         const GraphColoringResult result =
-            solve_graph_coloring(vertex_count, color_count, edges);
+            solve_graph_coloring(vertex_count, color_count, edges, pipeline);
         const bool passed = result.is_satisfiable == expected_satisfiable &&
             (!expected_satisfiable ||
              has_valid_colors(result, vertex_count, color_count, edges));
-        std::cout << (passed ? "[PASS] " : "[FAIL] ") << name << '\n';
+        std::cout << (passed ? "[PASS] " : "[FAIL] ") << name
+                  << (pipeline == CnfPipeline::Tseitin ? " (Tseitin)" : " (NNF)")
+                  << '\n';
         return passed;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << name << ": " << error.what() << '\n';
         return false;
     }
+}
+
+bool run_both_pipelines(
+    const std::string& name,
+    int vertex_count,
+    int color_count,
+    const std::vector<std::pair<int, int>>& edges,
+    bool expected_satisfiable) {
+    const bool nnf_passed = run_case(
+        name, vertex_count, color_count, edges, expected_satisfiable,
+        CnfPipeline::Nnf);
+    const bool tseitin_passed = run_case(
+        name, vertex_count, color_count, edges, expected_satisfiable,
+        CnfPipeline::Tseitin);
+    return nnf_passed && tseitin_passed;
 }
 
 bool rejects_invalid_edge() {
@@ -70,11 +88,16 @@ bool rejects_invalid_edge() {
 
 int main() {
     int failures = 0;
-    failures += !run_case("single vertex, one colour", 1, 1, {}, true);
-    failures += !run_case("path is two-colourable", 4, 2, {{1, 2}, {2, 3}, {3, 4}}, true);
-    failures += !run_case("triangle is three-colourable", 3, 3, {{1, 2}, {2, 3}, {3, 1}}, true);
-    failures += !run_case("triangle is not two-colourable", 3, 2, {{1, 2}, {2, 3}, {3, 1}}, false);
-    failures += !run_case("self-loop is not colorable", 1, 3, {{1, 1}}, false);
+    failures += !run_both_pipelines("single vertex, one colour", 1, 1, {}, true);
+    failures += !run_both_pipelines(
+        "path is two-colourable", 4, 2, {{1, 2}, {2, 3}, {3, 4}}, true);
+    failures += !run_both_pipelines(
+        "triangle is three-colourable", 3, 3, {{1, 2}, {2, 3}, {3, 1}}, true);
+    failures += !run_both_pipelines(
+        "triangle is not two-colourable", 3, 2,
+        {{1, 2}, {2, 3}, {3, 1}}, false);
+    failures += !run_both_pipelines(
+        "self-loop is not colorable", 1, 3, {{1, 1}}, false);
     failures += !rejects_invalid_edge();
 
     std::cout << '\n' << (failures == 0 ? "ALL TESTS PASSED" : "Failures: ")

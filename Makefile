@@ -17,18 +17,19 @@ endif
 
 WORKLET1_SOURCES := lexer.cpp parser.cpp truth_table.cpp nnf.cpp
 WORKLET1_HEADERS := ast.h lexer.h parser.h truth_table.h nnf.h parse_error.h
-SAT_SOLVER_SOURCES := code/nnf_converter.cpp code/dpll_solver.cpp
+SAT_SOLVER_SOURCES := code/nnf_converter.cpp code/tseitin_converter.cpp code/dpll_solver.cpp
 SAT_SOLVER_HEADERS := ast.h code/sat_types.hpp
-SAT_SOLVER_OBJECTS := $(BUILD_DIR)/nnf_converter.o $(BUILD_DIR)/dpll_solver.o
+SAT_SOLVER_OBJECTS := $(BUILD_DIR)/nnf_converter.o $(BUILD_DIR)/tseitin_converter.o $(BUILD_DIR)/dpll_solver.o
 GRAPH_COLORING_SOURCES := graph_coloring.cpp $(SAT_SOLVER_SOURCES)
 
 CNF_TEST := $(BUILD_DIR)/nnf_to_cnf_test$(EXE_EXT)
 END_TO_END_TEST := $(BUILD_DIR)/end_to_end_test$(EXE_EXT)
 WORKLET1_TEST := $(BUILD_DIR)/worklet1_tests$(EXE_EXT)
 GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
+TSEITIN_TEST := $(BUILD_DIR)/tseitin_test$(EXE_EXT)
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all benchmark gui test test-worklet1 test-cnf test-e2e test-coloring clean
+.PHONY: all benchmark gui test test-worklet1 test-cnf test-e2e test-coloring test-tseitin clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
@@ -60,11 +61,17 @@ $(BUILD_DIR)/nnf_converter.o: code/nnf_converter.cpp $(SAT_SOLVER_HEADERS) | $(B
 $(BUILD_DIR)/dpll_solver.o: code/dpll_solver.cpp $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/tseitin_converter.o: code/tseitin_converter.cpp code/nnf_converter.cpp $(SAT_SOLVER_HEADERS) nnf.h | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
 $(CNF_TEST): code/nnf_converter.cpp tests/nnf_to_cnf_test.cpp $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) code/nnf_converter.cpp tests/nnf_to_cnf_test.cpp -o $@
 
 $(END_TO_END_TEST): tests/end_to_end_test.cpp $(SAT_SOLVER_LIBRARY) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/end_to_end_test.cpp $(SAT_SOLVER_LIBRARY) -o $@
+
+$(TSEITIN_TEST): tests/tseitin_test.cpp $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) tests/tseitin_test.cpp -o $@
 
 $(WORKLET1_TEST): $(WORKLET1_SOURCES) tests/worklet1_tests.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet1_tests.cpp -o $@
@@ -72,7 +79,7 @@ $(WORKLET1_TEST): $(WORKLET1_SOURCES) tests/worklet1_tests.cpp $(WORKLET1_HEADER
 $(GRAPH_COLORING_TEST): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp -o $@
 
-test: test-worklet1 test-cnf test-e2e test-coloring
+test: test-worklet1 test-cnf test-e2e test-coloring test-tseitin
 
 test-worklet1: $(WORKLET1_TEST)
 	./$(WORKLET1_TEST)
@@ -86,6 +93,9 @@ test-e2e: $(END_TO_END_TEST)
 test-coloring: $(GRAPH_COLORING_TEST)
 	./$(GRAPH_COLORING_TEST)
 
+test-tseitin: $(TSEITIN_TEST)
+	./$(TSEITIN_TEST)
+
 $(BUILD_DIR):
 	$(MKDIR_BUILD)
 
@@ -95,8 +105,10 @@ clean:
 	$(call DELETE_FILE,performance$(EXE_EXT))
 	$(call DELETE_FILE,$(SAT_SOLVER_LIBRARY))
 	$(call DELETE_FILE,$(BUILD_DIR)/nnf_converter.o)
+	$(call DELETE_FILE,$(BUILD_DIR)/tseitin_converter.o)
 	$(call DELETE_FILE,$(BUILD_DIR)/dpll_solver.o)
 	$(call DELETE_FILE,$(CNF_TEST))
 	$(call DELETE_FILE,$(END_TO_END_TEST))
 	$(call DELETE_FILE,$(WORKLET1_TEST))
 	$(call DELETE_FILE,$(GRAPH_COLORING_TEST))
+	$(call DELETE_FILE,$(TSEITIN_TEST))
