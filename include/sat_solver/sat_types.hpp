@@ -48,7 +48,7 @@ class Clause {
 
 public:
     void addLiteral(const Literal& lit) {
-        for (int i = 0; i < literals.size(); i++) {
+        for (std::size_t i = 0; i < literals.size(); i++) {
             if (literals[i].isEqual(lit)) {
                 return; 
             }
@@ -61,7 +61,7 @@ public:
     }
 
     bool containsLiteral(const Literal& lit) const {
-        for (int i = 0; i < literals.size(); i++) {
+        for (std::size_t i = 0; i < literals.size(); i++) {
             if (literals[i].isEqual(lit)) {
                 return true;
             }

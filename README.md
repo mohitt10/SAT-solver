@@ -3,7 +3,7 @@
 ## Project layout
 
 ```text
-apps/                 Command-line, GUI, and benchmark entry points
+apps/                 Command-line, GUI backend, and benchmark entry points
 docs/                 Project documentation
 include/sat_solver/   Public headers
 src/frontend/         Lexer, parser, truth-table, and NNF implementation
@@ -22,8 +22,8 @@ formula → lexer → parser → shared AST
 ```
 
 The command-line application solves propositional formulas and can optionally
-print their truth table. The Qt GUI uses the same CNF converter and DPLL solver
-to solve graph-colouring instances.
+print their truth table. The Tkinter GUI calls a C++ backend that uses the same
+CNF converter and DPLL solver for formula solving and graph colouring.
 
 ## Formula syntax
 
@@ -75,7 +75,7 @@ than 24 distinct variables by default.
 
 ## GUI
 
-The GUI supports two problem modes:
+The Tkinter GUI supports two problem modes:
 
 - **Graph coloring**: choose vertices and colours, then add edges on the canvas.
 - **Formula SAT**: enter any propositional formula using `~`, `&`, `|`, `->`,
@@ -88,23 +88,15 @@ For graph coloring, a satisfying result is shown directly on the graph;
 unsatisfiable graphs are reported in the status area. Right-click to cancel an
 in-progress edge, or use **Clear edges** to start over.
 
-Install Qt 6 Widgets and `pkg-config`, then build and launch with:
+Build its C++ backend and launch the Python interface with:
 
 ```sh
-make gui
-./sat_solver_gui
+make gui-backend
+python gui/main.py
 ```
 
-On Windows with MinGW and a Qt installation configured for `pkg-config`, run
-`mingw32-make gui` and then `.\sat_solver_gui.exe`.
-
-At launch, the GUI clears inherited `GTK_PATH` and `GIO_MODULE_DIR` values to
-avoid incompatible GTK modules in environments such as the VS Code Snap
-terminal.
-
-The default Qt package is `Qt6Widgets`. To build with a Qt 5 installation,
-specify `make gui QT_PACKAGE=Qt5Widgets` (or
-`mingw32-make gui QT_PACKAGE=Qt5Widgets` on Windows).
+On Windows with MinGW, build with `mingw32-make gui-backend`, then launch with
+`py gui\main.py`. The GUI requires Python with Tkinter available.
 
 ## Encoder benchmark
 
@@ -165,10 +157,14 @@ The AST structure is unchanged. Multi-error recovery is not implemented.
 
 ## Tests
 
-Run the lexer, parser, truth-table, NNF/CNF, SAT, and graph-colouring tests with:
+Run the lexer, parser, truth-table, validation, NNF/CNF, SAT, and graph-colouring
+tests with:
 
 ```sh
 make test
 ```
+
+The default `make` target builds the SAT solver, its library, and the Sudoku
+program.
 
 On Windows with MinGW, run `mingw32-make test`.

@@ -5,6 +5,18 @@
 
 namespace {
 
+bool is_tautological(const Clause& clause) {
+    const std::vector<Literal>& literals = clause.getLiterals();
+    for (std::size_t i = 0; i < literals.size(); ++i) {
+        for (std::size_t j = i + 1; j < literals.size(); ++j) {
+            if (literals[i].isOpposite(literals[j])) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 class NnfToCnfVisitor : public Visitor {
     std::vector<Clause> clauses;
 
@@ -63,7 +75,9 @@ public:
                     combined.addLiteral(literal);
                 }
 
-                clauses.push_back(combined);
+                if (!is_tautological(combined)) {
+                    clauses.push_back(combined);
+                }
             }
         }
     }

@@ -5,8 +5,7 @@
 
 using namespace std;
 
-//[ADDED FOR GUI TRACING/GRAPH COLORING]
-// These helper functions power the Qt GUI's visual tracing system.
+// These helper functions support GUI tracing and graph-colouring visualization.
 // They record exactly what the solver is doing so it can be animated on screen.
 namespace {
 
@@ -84,7 +83,7 @@ CNF assign_literal(
 
     vector<Clause> current_clauses = current_cnf.getClauses();
     
-    for (int i = 0; i < current_clauses.size(); i++) {
+    for (std::size_t i = 0; i < current_clauses.size(); i++) {
         Clause clause = current_clauses[i];
         
         //True variable found
@@ -96,7 +95,7 @@ CNF assign_literal(
         Clause shrunk;
         vector<Literal> lits = clause.getLiterals();
         
-        for (int j = 0; j < lits.size(); j++) {
+        for (std::size_t j = 0; j < lits.size(); j++) {
             Literal lit = lits[j];
             if (!lit.isOpposite(assigned_lit)) {
                 shrunk.addLiteral(lit);
@@ -117,7 +116,7 @@ CNF assign_literal(
 bool find_unit_literal(CNF cnf, Literal& out_literal) {
     vector<Clause> clauses = cnf.getClauses();
     
-    for (int i = 0; i < clauses.size(); i++) {
+    for (std::size_t i = 0; i < clauses.size(); i++) {
         if (clauses[i].size() == 1) {
             out_literal = clauses[i].getLiterals()[0];
             return true;
@@ -131,10 +130,10 @@ bool find_pure_literal(CNF cnf, Literal& out_literal) {
     unordered_map<string, int> polarity_map;
     
     vector<Clause> clauses = cnf.getClauses();
-    for (int i = 0; i < clauses.size(); i++) {
+    for (std::size_t i = 0; i < clauses.size(); i++) {
         vector<Literal> lits = clauses[i].getLiterals();
         
-        for (int j = 0; j < lits.size(); j++) {
+        for (std::size_t j = 0; j < lits.size(); j++) {
             Literal lit = lits[j];
             string var_name = lit.getVariable();
             
@@ -189,7 +188,7 @@ bool dpll_recursive(
 
     // 2.Base Case: Conflict
     vector<Clause> clauses = cnf.getClauses();
-    for (int i = 0; i < clauses.size(); i++) {
+    for (std::size_t i = 0; i < clauses.size(); i++) {
         if (clauses[i].isEmpty()) {
             // [ADDED FOR GUI TRACING]: Logs conflict event
             if (!conflict_previously_recorded) {
@@ -229,7 +228,7 @@ bool dpll_recursive(
         if (cnf.isEmpty()) return true;
         
         vector<Clause> new_clauses = cnf.getClauses();
-        for (int i = 0; i < new_clauses.size(); i++) {
+        for (std::size_t i = 0; i < new_clauses.size(); i++) {
             if (new_clauses[i].isEmpty()) { //If any clause is empty it means that all the literals are guesses false
                 stats.backtrack_count++;
                 
@@ -272,7 +271,7 @@ bool dpll_recursive(
         if (cnf.isEmpty()) return true;
         
         vector<Clause> new_clauses = cnf.getClauses();
-        for (int i = 0; i < new_clauses.size(); i++) {
+        for (std::size_t i = 0; i < new_clauses.size(); i++) {
             if (new_clauses[i].isEmpty()) {
                 stats.backtrack_count++;
                 
