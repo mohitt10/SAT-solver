@@ -30,11 +30,12 @@ GRAPH_COLORING_SOURCES := src/graph/graph_coloring.cpp $(SAT_SOLVER_SOURCES)
 CNF_TEST := $(BUILD_DIR)/nnf_to_cnf_test$(EXE_EXT)
 END_TO_END_TEST := $(BUILD_DIR)/end_to_end_test$(EXE_EXT)
 WORKLET1_TEST := $(BUILD_DIR)/worklet1_tests$(EXE_EXT)
+WORKLET1_UNIT_TEST := $(BUILD_DIR)/worklet1_unit_tests$(EXE_EXT)
 GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
 TSEITIN_TEST := $(BUILD_DIR)/tseitin_test$(EXE_EXT)
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all benchmark gui gui-backend test test-worklet1 test-cnf test-e2e test-coloring test-tseitin clean
+.PHONY: all benchmark gui gui-backend test test-worklet1 test-worklet1-unit test-cnf test-e2e test-coloring test-tseitin clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
@@ -83,13 +84,20 @@ $(TSEITIN_TEST): tests/tseitin_test.cpp $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES
 $(WORKLET1_TEST): $(WORKLET1_SOURCES) tests/worklet1_tests.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet1_tests.cpp -o $@
 
+$(WORKLET1_UNIT_TEST): $(WORKLET1_SOURCES) tests/worklet1_unit_tests.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet1_unit_tests.cpp -o $@
+
 $(GRAPH_COLORING_TEST): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp include/sat_solver/graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp -o $@
 
 test: test-worklet1 test-cnf test-e2e test-coloring test-tseitin
 
-test-worklet1: $(WORKLET1_TEST)
+test-worklet1: $(WORKLET1_UNIT_TEST) $(WORKLET1_TEST)
+	./$(WORKLET1_UNIT_TEST)
 	./$(WORKLET1_TEST)
+
+test-worklet1-unit: $(WORKLET1_UNIT_TEST)
+	./$(WORKLET1_UNIT_TEST)
 
 test-cnf: $(CNF_TEST)
 	./$(CNF_TEST)
@@ -118,5 +126,6 @@ clean:
 	$(call DELETE_FILE,$(CNF_TEST))
 	$(call DELETE_FILE,$(END_TO_END_TEST))
 	$(call DELETE_FILE,$(WORKLET1_TEST))
+	$(call DELETE_FILE,$(WORKLET1_UNIT_TEST))
 	$(call DELETE_FILE,$(GRAPH_COLORING_TEST))
 	$(call DELETE_FILE,$(TSEITIN_TEST))
