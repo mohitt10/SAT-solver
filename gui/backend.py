@@ -37,7 +37,7 @@ class Backend:
             if cancel_event is None:
                 completed = subprocess.run(
                     command,
-                    input=puzzle_input if operation == "puzzle" else formula,
+                    input=puzzle_input if operation in ("puzzle", "sudoku") else formula,
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
@@ -47,7 +47,7 @@ class Backend:
             else:
                 completed = self._run_cancellable(
                     command,
-                    puzzle_input if operation == "puzzle" else formula,
+                    puzzle_input if operation in ("puzzle", "sudoku") else formula,
                     cancel_event,
                 )
         except BackendCancelled:
@@ -156,3 +156,16 @@ class Backend:
             "trace_limit": 10000,
         }
         return self.request("puzzle", options=options, puzzle_input=edge_text)
+
+    def sudoku(self, grid, trace_unit=True, trace_pure=True):
+        if len(grid) != 9 or any(len(row) != 9 for row in grid):
+            raise ValueError("A Sudoku grid must have 9 rows of 9 cells.")
+        values = [str(value) for row in grid for value in row]
+        options = {
+            "trace_unit": "on" if trace_unit else "off",
+            "trace_pure": "on" if trace_pure else "off",
+            "trace_limit": 10000,
+        }
+        return self.request(
+            "sudoku", options=options, puzzle_input=" ".join(values)
+        )

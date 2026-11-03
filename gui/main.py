@@ -1,6 +1,8 @@
 """Plain Tkinter interface for the propositional SAT solver."""
 
 import queue
+import math
+import random
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -15,6 +17,170 @@ EXAMPLES = [
     "(A & ~B) -> C",
 ]
 
+PALETTE = ("#2563eb", "#e11d48", "#059669", "#d97706", "#7c3aed", "#0891b2")
+def generate_sudoku(clue_count=40):
+    """Create a valid Sudoku puzzle by shuffling a solved grid and hiding cells."""
+    if not 17 <= clue_count <= 81:
+        raise ValueError("Clue count must be between 17 and 81.")
+
+    rng = random.Random()
+
+    def pattern(row, column):
+        return (row * 3 + row // 3 + column) % 9
+
+    row_order = [
+        band * 3 + row
+        for band in rng.sample(range(3), 3)
+        for row in rng.sample(range(3), 3)
+    ]
+    column_order = [
+        stack * 3 + column
+        for stack in rng.sample(range(3), 3)
+        for column in rng.sample(range(3), 3)
+    ]
+    digit_order = rng.sample(range(1, 10), 9)
+    grid = [
+        [digit_order[pattern(row, column)] for column in column_order]
+        for row in row_order
+    ]
+
+    for cell in rng.sample(range(81), 81 - clue_count):
+        grid[cell // 9][cell % 9] = 0
+    return grid
+
+
+class GraphCanvas(tk.Canvas):
+    def __init__(self, master, on_node_click):
+        super().__init__(master, background="#f8fafc", highlightthickness=0)
+        self.on_node_click = on_node_click
+        self.nodes = 6
+        self.edges = []
+        self.colouring = []
+        self.selected_node = None
+        self.bind("<Configure>", self._draw)
+        self.bind("<Button-1>", self._click)
+
+    def update_graph(self, nodes, edges, colouring, selected_node):
+        self.nodes = nodes
+        self.edges = list(edges)
+        self.colouring = list(colouring)
+        self.selected_node = selected_node
+        self._draw()
+
+    def _positions(self):
+        width = max(self.winfo_width(), 180)
+        height = max(self.winfo_height(), 180)
+        center_x, center_y = width / 2, height / 2
+        if self.nodes <= 12:
+            self.node_radius = 20
+            radius = max(self.node_radius + 12, min(width, height) * 0.37)
+            return [
+                (
+                    center_x + radius * math.cos(
+                        2 * math.pi * index / self.nodes - math.pi / 2
+                    ),
+                    center_y + radius * math.sin(
+                        2 * math.pi * index / self.nodes - math.pi / 2
+                    ),
+                )
+                for index in range(self.nodes)
+            ]
+
+        self.node_radius = 7 if self.nodes > 40 else 12
+        outer_radius = max(
+            self.node_radius + 4,
+            min(width, height) * 0.43 - self.node_radius,
+        )
+        ring_spacing = self.node_radius * 2 + (2 if self.nodes > 40 else 6)
+        ring_radii = []
+        radius = outer_radius
+        while radius >= self.node_radius:
+            ring_radii.append(radius)
+            radius -= ring_spacing
+        if not ring_radii:
+            ring_radii.append(0)
+
+        positions = []
+        remaining = self.nodes
+        for ring_index, radius in enumerate(ring_radii):
+            capacity = (
+                1
+                if radius < self.node_radius * 1.5
+                else max(
+                    3,
+                    int(
+                        2 * math.pi * radius
+                        / (self.node_radius * 2 + (2 if self.nodes > 40 else 5))
+                    ),
+                )
+            )
+            count = min(remaining, capacity)
+            for index in range(count):
+                angle = (
+                    2 * math.pi * index / count
+                    - math.pi / 2
+                    + (ring_index % 2) * math.pi / max(count, 1)
+                )
+                positions.append(
+                    (
+                        center_x + radius * math.cos(angle),
+                        center_y + radius * math.sin(angle),
+                    )
+                )
+            remaining -= count
+            if remaining == 0:
+                break
+
+        return positions
+
+    def _draw(self, _event=None):
+        self.delete("all")
+        positions = self._positions()
+        for first, second in self.edges:
+            x1, y1 = positions[first - 1]
+            x2, y2 = positions[second - 1]
+            self.create_line(x1, y1, x2, y2, fill="#94a3b8", width=2)
+
+        for index, (x, y) in enumerate(positions, 1):
+            assigned_colour = (
+                self.colouring[index - 1]
+                if index <= len(self.colouring)
+                else 0
+            )
+            fill = (
+                PALETTE[(assigned_colour - 1) % len(PALETTE)]
+                if assigned_colour > 0
+                else "#ffffff"
+            )
+            outline = "#f59e0b" if index == self.selected_node else "#334155"
+            self.create_oval(
+                x - self.node_radius,
+                y - self.node_radius,
+                x + self.node_radius,
+                y + self.node_radius,
+                fill=fill,
+                outline=outline,
+                width=4 if index == self.selected_node else 2,
+                tags=("node", str(index)),
+            )
+            self.create_text(
+                x,
+                y,
+                text=str(index),
+                fill="#ffffff" if assigned_colour else "#0f172a",
+                font=(
+                    "TkDefaultFont",
+                    10 if self.nodes <= 12 else 7 if self.nodes > 40 else 8,
+                    "bold",
+                ),
+            )
+
+    def _click(self, event):
+        for index, (x, y) in enumerate(self._positions(), 1):
+            if (event.x - x) ** 2 + (event.y - y) ** 2 <= (self.node_radius + 4) ** 2:
+                self.on_node_click(index)
+                return
+
 
 class SatGui:
     def __init__(self, root):
@@ -27,45 +193,124 @@ class SatGui:
         self.truth_start = 0
         self.truth_cancel_event = None
         self.active_job_buttons = ()
+        self.active_job_inputs = ()
         self.active_job_status = None
         self.puzzle_edges = []
+        self.selected_node = None
+        self.puzzle_colouring = []
 
         root.title("Propositional Logic & SAT Solver")
-        root.geometry("980x720")
-        root.configure(background="white")
+        root.geometry("1180x820")
+        root.minsize(1000, 620)
+        root.configure(background="#f1f5f9")
+        self._configure_theme()
 
-        self.tabs = ttk.Notebook(root)
-        self.tabs.pack(fill="both", expand=True, padx=8, pady=8)
+        header = ttk.Frame(root, style="Header.TFrame", padding=(24, 18))
+        header.pack(fill="x")
+        ttk.Label(header, text="SAT Studio", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(
+            header,
+            text="Explore formulas, graph colouring, and Sudoku with SAT",
+            style="Subtitle.TLabel",
+        ).pack(anchor="w", pady=(3, 0))
+
+        self.tabs = ttk.Notebook(root, style="Studio.TNotebook")
+        self.tabs.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         self.formula_tab = tk.Frame(self.tabs, bg="white")
         self.puzzle_tab = tk.Frame(self.tabs, bg="white")
+        self.sudoku_tab = tk.Frame(self.tabs, bg="white")
+        self.solver_results_tab = tk.Frame(self.tabs, bg="white")
         self.tabs.add(self.formula_tab, text="Formula")
-        self.tabs.add(self.puzzle_tab, text="Puzzle: Graph Colouring")
+        self.tabs.add(self.puzzle_tab, text="Graph colouring")
+        self.tabs.add(self.sudoku_tab, text="Sudoku")
+        self.tabs.add(self.solver_results_tab, text="Solver results")
 
         self._build_formula_tab()
         self._build_puzzle_tab()
+        self._build_sudoku_tab()
+        self._build_solver_results_tab()
         self.root.after(50, self._check_results)
+
+    @staticmethod
+    def _configure_theme():
+        style = ttk.Style()
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+        style.configure(".", font=("TkDefaultFont", 10))
+        style.configure("TFrame", background="#f1f5f9")
+        style.configure("Card.TFrame", background="#ffffff")
+        style.configure("Header.TFrame", background="#0f172a")
+        style.configure("Title.TLabel", background="#0f172a", foreground="#f8fafc",
+                        font=("TkDefaultFont", 20, "bold"))
+        style.configure("Subtitle.TLabel", background="#0f172a", foreground="#cbd5e1")
+        style.configure("Studio.TNotebook", background="#f1f5f9", borderwidth=0)
+        style.configure(
+            "Studio.TNotebook.Tab",
+            padding=(18, 11),
+            background="#e2e8f0",
+            foreground="#334155",
+            font=("TkDefaultFont", 10, "bold"),
+        )
+        style.map(
+            "Studio.TNotebook.Tab",
+            background=[("selected", "#ffffff")],
+            foreground=[("selected", "#1d4ed8")],
+        )
+        style.configure("TButton", padding=(12, 7), background="#e2e8f0",
+                        foreground="#0f172a")
+        style.map("TButton", background=[("active", "#cbd5e1")])
+        style.configure("Primary.TButton", padding=(14, 8), background="#2563eb",
+                        foreground="#ffffff", font=("TkDefaultFont", 10, "bold"))
+        style.map("Primary.TButton", background=[("active", "#1d4ed8")])
+        style.configure("TLabel", background="#ffffff", foreground="#0f172a")
+        style.configure("Section.TLabel", background="#ffffff", foreground="#0f172a",
+                        font=("TkDefaultFont", 13, "bold"))
+        style.configure("Muted.TLabel", background="#ffffff", foreground="#64748b")
 
     def _build_formula_tab(self):
         page = self.formula_tab
-        tk.Label(
-            page, text="Propositional formula", bg="white", fg="black"
-        ).pack(anchor="w", padx=8, pady=(8, 2))
+        page.configure(bg="#f1f5f9")
+        editor = ttk.Frame(page, padding=16, style="Card.TFrame")
+        editor.pack(fill="x", padx=12, pady=12)
+        ttk.Label(editor, text="Formula workbench", style="Section.TLabel").pack(
+            anchor="w"
+        )
+        ttk.Label(
+            editor,
+            text="Analyse its structure or solve it with the SAT backend.",
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(3, 10))
 
-        self.formula = tk.Text(page, height=4, wrap="word", bg="white", fg="black")
-        self.formula.pack(fill="x", padx=8)
+        self.formula = tk.Text(
+            editor,
+            height=4,
+            wrap="word",
+            bg="#f8fafc",
+            fg="#0f172a",
+            insertbackground="#2563eb",
+            font=("TkFixedFont", 11),
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            highlightcolor="#2563eb",
+            padx=10,
+            pady=8,
+        )
+        self.formula.pack(fill="x")
         self.formula.tag_configure("error", background="#ffdede")
-        self.error_position = tk.Label(page, text="", bg="white", fg="#b00020", anchor="w")
-        self.error_position.pack(fill="x", padx=8)
+        self.error_position = tk.Label(
+            editor, text="", bg="white", fg="#b91c1c", anchor="w"
+        )
+        self.error_position.pack(fill="x", pady=(2, 0))
 
-        tk.Label(
-            page,
-            text="Symbols: AND  &     OR  |     NOT  ~     IMPLIES  ->     IFF  <->",
-            bg="white",
-            fg="black",
-        ).pack(anchor="w", padx=8, pady=4)
+        ttk.Label(
+            editor,
+            text="Operators:  NOT ~    AND &    OR |    IMPLIES ->    IFF <->",
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(6, 8))
 
-        row = tk.Frame(page, bg="white")
-        row.pack(fill="x", padx=8, pady=4)
+        row = ttk.Frame(editor, style="Card.TFrame")
+        row.pack(fill="x")
         self.example = tk.StringVar(value="Choose an example")
         examples = ttk.Combobox(
             row, textvariable=self.example, values=EXAMPLES, state="readonly", width=30
@@ -75,32 +320,38 @@ class SatGui:
 
         self.unit_prop = tk.BooleanVar(value=True)
         self.pure_literal = tk.BooleanVar(value=True)
-        tk.Checkbutton(
-            row, text="Unit propagation", variable=self.unit_prop, bg="white"
-        ).pack(side="left", padx=(12, 0))
-        tk.Checkbutton(
-            row, text="Pure literal elimination", variable=self.pure_literal, bg="white"
+        ttk.Checkbutton(row, text="Unit propagation", variable=self.unit_prop).pack(
+            side="left", padx=(12, 0)
+        )
+        ttk.Checkbutton(
+            row, text="Pure literal elimination", variable=self.pure_literal
         ).pack(side="left")
 
-        self.analyze_button = tk.Button(row, text="Analyse", command=self.analyze)
+        self.analyze_button = ttk.Button(row, text="Analyse", command=self.analyze)
         self.analyze_button.pack(side="right", padx=3)
-        self.solve_button = tk.Button(row, text="Solve", command=self.solve)
+        self.solve_button = ttk.Button(
+            row, text="Solve", style="Primary.TButton", command=self.solve
+        )
         self.solve_button.pack(side="right", padx=3)
-        self.clear_button = tk.Button(row, text="Clear", command=self.clear)
+        self.clear_button = ttk.Button(row, text="Clear", command=self.clear)
         self.clear_button.pack(side="right", padx=3)
 
         self.status = tk.Label(
             page, text="Enter a formula, then choose Analyse or Solve.",
-            bg="white", fg="black", anchor="w", justify="left", wraplength=900
+            bg="#f1f5f9", fg="#334155", anchor="w", justify="left", wraplength=1100
         )
-        self.status.pack(fill="x", padx=8, pady=4)
+        self.status.pack(fill="x", padx=16, pady=(0, 5))
         self.classification = tk.Label(
-            page, text="Classification: not analysed", bg="white", fg="black", anchor="w"
+            page,
+            text="Classification: not analysed",
+            bg="#f1f5f9",
+            fg="#334155",
+            anchor="w",
         )
-        self.classification.pack(fill="x", padx=8)
+        self.classification.pack(fill="x", padx=16)
 
-        self.result_tabs = ttk.Notebook(page)
-        self.result_tabs.pack(fill="both", expand=True, padx=8, pady=8)
+        self.result_tabs = ttk.Notebook(page, style="Studio.TNotebook")
+        self.result_tabs.pack(fill="both", expand=True, padx=12, pady=12)
         self.ast_text = self._add_text_tab("AST")
         self._build_truth_table_tab()
         self.cnf_text = self._add_text_tab("CNF")
@@ -115,19 +366,19 @@ class SatGui:
 
         controls = tk.Frame(self.truth_frame, bg="white")
         controls.pack(fill="x", padx=8, pady=8)
-        self.truth_generate_button = tk.Button(
+        self.truth_generate_button = ttk.Button(
             controls, text="Generate", command=self.generate_truth_table
         )
         self.truth_generate_button.pack(side="left")
-        self.truth_cancel_button = tk.Button(
+        self.truth_cancel_button = ttk.Button(
             controls, text="Cancel", command=self.cancel_truth_table, state="disabled"
         )
         self.truth_cancel_button.pack(side="left", padx=4)
-        self.truth_previous_button = tk.Button(
+        self.truth_previous_button = ttk.Button(
             controls, text="Previous", command=self.previous_truth_page, state="disabled"
         )
         self.truth_previous_button.pack(side="right", padx=3)
-        self.truth_next_button = tk.Button(
+        self.truth_next_button = ttk.Button(
             controls, text="Next", command=self.next_truth_page, state="disabled"
         )
         self.truth_next_button.pack(side="right", padx=3)
@@ -190,111 +441,147 @@ class SatGui:
 
     def _build_puzzle_tab(self):
         page = self.puzzle_tab
-        tk.Label(
-            page, text="Graph-colouring puzzle", bg="white", fg="black"
-        ).pack(anchor="w", padx=8, pady=(8, 2))
+        page.configure(bg="#f1f5f9")
+        heading = ttk.Frame(page, padding=(18, 14), style="Card.TFrame")
+        heading.pack(fill="x", padx=12, pady=(12, 8))
+        ttk.Label(heading, text="Graph colouring", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(
+            heading,
+            text=(
+                "Click two nodes to connect them. The solver colours the graph "
+                "so adjacent nodes differ. Graph and Sudoku share Solver results."
+            ),
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(3, 0))
 
-        setup = tk.Frame(page, bg="white")
-        setup.pack(fill="x", padx=8, pady=4)
-        self.puzzle_example = tk.StringVar(value="Choose a built-in example")
-        examples = ttk.Combobox(
-            setup,
-            textvariable=self.puzzle_example,
-            values=("Triangle with 3 colours (SAT)", "Triangle with 2 colours (UNSAT)"),
-            state="readonly",
-            width=34,
-        )
-        examples.pack(side="left")
-        examples.bind("<<ComboboxSelected>>", self._load_puzzle_example)
-
-        tk.Label(setup, text="Nodes:", bg="white", fg="black").pack(
-            side="left", padx=(12, 2)
-        )
+        setup = ttk.Frame(page, padding=(14, 10), style="Card.TFrame")
+        setup.pack(fill="x", padx=12, pady=(0, 8))
+        ttk.Label(setup, text="Nodes").pack(side="left", padx=(0, 5))
         self.node_count = tk.Spinbox(
-            setup, from_=1, to=12, width=5, command=self._puzzle_dimensions_changed
+            setup, from_=3, to=100, width=4, command=self._puzzle_dimensions_changed
         )
         self.node_count.delete(0, "end")
-        self.node_count.insert(0, "3")
-        self.node_count.pack(side="left")
+        self.node_count.insert(0, "8")
+        self.node_count.pack(side="left", padx=(0, 14))
         self.node_count.bind("<FocusOut>", self._puzzle_dimensions_changed)
 
-        tk.Label(setup, text="Colours:", bg="white", fg="black").pack(
-            side="left", padx=(8, 2)
-        )
+        ttk.Label(setup, text="Colours").pack(side="left", padx=(0, 5))
         self.colour_count = tk.Spinbox(setup, from_=1, to=12, width=5)
         self.colour_count.delete(0, "end")
         self.colour_count.insert(0, "3")
-        self.colour_count.pack(side="left")
+        self.colour_count.pack(side="left", padx=(0, 14))
         self.colour_count.configure(command=self._puzzle_dimensions_changed)
         self.colour_count.bind("<FocusOut>", self._puzzle_dimensions_changed)
 
-        edge_row = tk.Frame(page, bg="white")
-        edge_row.pack(fill="x", padx=8, pady=4)
-        tk.Label(edge_row, text="Add edge:", bg="white", fg="black").pack(
-            side="left"
+        self.trace_unit = tk.BooleanVar(value=True)
+        self.trace_pure = tk.BooleanVar(value=True)
+        self.trace_unit_button = ttk.Checkbutton(
+            setup,
+            text="Trace: unit propagation",
+            variable=self.trace_unit,
         )
-        self.edge_first = tk.Spinbox(edge_row, from_=1, to=3, width=5)
-        self.edge_first.pack(side="left", padx=(6, 2))
-        tk.Label(edge_row, text="to", bg="white", fg="black").pack(side="left")
-        self.edge_second = tk.Spinbox(edge_row, from_=1, to=3, width=5)
-        self.edge_second.pack(side="left", padx=2)
-        self.add_edge_button = tk.Button(
-            edge_row, text="Add edge", command=self.add_edge
+        self.trace_unit_button.pack(side="left", padx=(0, 8))
+        self.trace_pure_button = ttk.Checkbutton(
+            setup,
+            text="Trace: pure literal",
+            variable=self.trace_pure,
         )
-        self.add_edge_button.pack(side="left", padx=4)
-        self.remove_edge_button = tk.Button(
-            edge_row, text="Remove selected", command=self.remove_selected_edge
-        )
-        self.remove_edge_button.pack(side="left", padx=4)
-        self.solve_puzzle_button = tk.Button(
-            edge_row, text="Solve puzzle", command=self.solve_puzzle
+        self.trace_pure_button.pack(side="left", padx=(0, 8))
+
+        self.solve_puzzle_button = ttk.Button(
+            setup, text="Solve graph", style="Primary.TButton", command=self.solve_puzzle
         )
         self.solve_puzzle_button.pack(side="right")
+        self.clear_graph_button = ttk.Button(
+            setup, text="Clear graph", command=self.clear_graph
+        )
+        self.clear_graph_button.pack(side="right", padx=8)
 
-        edge_frame = tk.Frame(page, bg="white")
-        edge_frame.pack(fill="x", padx=8, pady=4)
-        tk.Label(edge_frame, text="Edges:", bg="white", fg="black").pack(
-            side="left", anchor="n"
-        )
+        graph_row = ttk.Frame(page)
+        graph_card = ttk.Frame(graph_row, padding=8, style="Card.TFrame")
+        graph_card.pack(side="left", fill="both", expand=True)
+        self.graph_canvas = GraphCanvas(graph_card, self._graph_node_clicked)
+        self.graph_canvas.pack(fill="both", expand=True)
+
+        edge_card = ttk.Frame(graph_row, padding=14, style="Card.TFrame")
+        edge_card.pack(side="left", fill="y", padx=(8, 0))
+        ttk.Label(edge_card, text="Connections", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(
+            edge_card,
+            text="Select an edge to remove it.",
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(3, 8))
         self.edge_list = tk.Listbox(
-            edge_frame, height=4, bg="white", fg="black", exportselection=False
+            edge_card,
+            height=12,
+            width=24,
+            bg="#f8fafc",
+            fg="#0f172a",
+            selectbackground="#dbeafe",
+            selectforeground="#1d4ed8",
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#e2e8f0",
+            exportselection=False,
         )
-        self.edge_list.pack(side="left", fill="x", expand=True, padx=8)
+        self.edge_list.pack(fill="both", expand=True)
         edge_scroll = ttk.Scrollbar(
-            edge_frame, orient="vertical", command=self.edge_list.yview
+            edge_card, orient="vertical", command=self.edge_list.yview
         )
-        edge_scroll.pack(side="left", fill="y")
+        edge_scroll.place(relx=1.0, rely=0, relheight=1.0, anchor="ne")
         self.edge_list.configure(yscrollcommand=edge_scroll.set)
+        self.remove_edge_button = ttk.Button(
+            edge_card, text="Remove selected", command=self.remove_selected_edge
+        )
+        self.remove_edge_button.pack(fill="x", pady=(10, 0))
 
         self.puzzle_status = tk.Label(
-            page, text="Add graph edges or choose an example.",
-            bg="white", fg="black", anchor="w"
+            page,
+            text=(
+                "Click a node, then another node to add an edge. "
+                "Graph and Sudoku share Solver results."
+            ),
+            bg="#f1f5f9",
+            fg="#334155",
+            anchor="w",
         )
-        self.puzzle_status.pack(fill="x", padx=8, pady=4)
+        self.puzzle_status.pack(fill="x", padx=16, pady=(0, 8))
+        graph_row.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
-        self.puzzle_results = ttk.Notebook(page)
-        self.puzzle_results.pack(fill="both", expand=True, padx=8, pady=4)
+    def _build_solver_results_tab(self):
+        page = self.solver_results_tab
+        page.configure(bg="#f1f5f9")
+        self.puzzle_results = ttk.Notebook(page, style="Studio.TNotebook")
+        self.puzzle_results.pack(fill="both", expand=True, padx=12, pady=12)
         self.puzzle_solution = self._add_puzzle_text_tab("Solution")
         self.puzzle_encoding = self._add_puzzle_text_tab("Encoding")
         self.puzzle_trace = self._add_puzzle_text_tab("DPLL trace")
-
-        metrics = tk.LabelFrame(
-            page, text="Metrics and DPLL comparison", bg="white", fg="black"
+        metrics_page = tk.Frame(self.puzzle_results, bg="white")
+        self.puzzle_results.add(metrics_page, text="Performance & metrics")
+        metrics_panel = ttk.Frame(metrics_page, padding=(8, 6))
+        metrics_panel.pack(side="left", fill="both", expand=True)
+        ttk.Label(metrics_panel, text="Encoding metrics", style="Section.TLabel").pack(
+            anchor="w", pady=(0, 4)
         )
-        metrics.pack(fill="x", padx=8, pady=(2, 8))
         self.puzzle_metrics = ttk.Treeview(
-            metrics, columns=("metric", "value"), show="headings", height=6
+            metrics_panel, columns=("metric", "value"), show="headings", height=5
         )
         self.puzzle_metrics.heading("metric", text="Metric")
         self.puzzle_metrics.heading("value", text="Value")
-        self.puzzle_metrics.column("metric", width=250, stretch=True)
-        self.puzzle_metrics.column("value", width=220, stretch=True)
-        self.puzzle_metrics.pack(fill="x", padx=4, pady=4)
+        self.puzzle_metrics.column("metric", width=210, stretch=True)
+        self.puzzle_metrics.column("value", width=180, stretch=True)
+        self.puzzle_metrics.pack(fill="both", expand=True)
+        comparison_panel = ttk.Frame(metrics_page, padding=(8, 6))
+        comparison_panel.pack(side="left", fill="both", expand=True)
+        ttk.Label(
+            comparison_panel, text="Solver performance",
+            style="Section.TLabel",
+        ).pack(anchor="w", pady=(0, 4))
         self.puzzle_comparison = ttk.Treeview(
-            metrics,
+            comparison_panel,
             columns=("unit", "pure", "result", "time", "decisions", "backtracks"),
             show="headings",
-            height=4,
+            height=5,
         )
         for column, title in (
             ("unit", "Unit prop"),
@@ -305,8 +592,300 @@ class SatGui:
             ("backtracks", "Backtracks"),
         ):
             self.puzzle_comparison.heading(column, text=title)
-            self.puzzle_comparison.column(column, width=100, stretch=True)
-        self.puzzle_comparison.pack(fill="x", padx=4, pady=(0, 4))
+            self.puzzle_comparison.column(column, width=82, stretch=True)
+        self.puzzle_comparison.pack(fill="both", expand=True)
+        self.puzzle_results.select(metrics_page)
+        self._clear_puzzle_results()
+
+    def _build_sudoku_tab(self):
+        page = self.sudoku_tab
+        page.configure(bg="#f1f5f9")
+        heading = ttk.Frame(page, padding=(18, 14), style="Card.TFrame")
+        heading.pack(fill="x", padx=12, pady=(12, 8))
+        ttk.Label(heading, text="Sudoku solver", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(
+            heading,
+            text=(
+                "Enter clues or generate a puzzle. Unit propagation and pure "
+                "literal are on by default; disabling them may slow solving."
+            ),
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(3, 0))
+
+        actions = ttk.Frame(page, padding=(14, 10), style="Card.TFrame")
+        actions.pack(fill="x", padx=12, pady=(0, 8))
+        ttk.Label(actions, text="Generated puzzle clues").pack(
+            side="left", padx=(0, 6)
+        )
+        self.sudoku_clue_count = tk.Spinbox(actions, from_=17, to=81, width=4)
+        self.sudoku_clue_count.delete(0, "end")
+        self.sudoku_clue_count.insert(0, "40")
+        self.sudoku_clue_count.pack(side="left", padx=(0, 6))
+        self.sudoku_generate_button = ttk.Button(
+            actions, text="Generate puzzle", command=self.generate_sudoku_puzzle
+        )
+        self.sudoku_generate_button.pack(side="left")
+        self.sudoku_trace_unit_button = ttk.Checkbutton(
+            actions,
+            text="Unit propagation",
+            variable=self.trace_unit,
+        )
+        self.sudoku_trace_unit_button.pack(side="left", padx=(14, 8))
+        self.sudoku_trace_pure_button = ttk.Checkbutton(
+            actions,
+            text="Pure literal",
+            variable=self.trace_pure,
+        )
+        self.sudoku_trace_pure_button.pack(side="left", padx=(0, 8))
+        self.sudoku_solve_button = ttk.Button(
+            actions,
+            text="Solve puzzle",
+            style="Primary.TButton",
+            command=self.solve_sudoku,
+        )
+        self.sudoku_solve_button.pack(side="right")
+        self.sudoku_clear_button = ttk.Button(
+            actions, text="Clear grid", command=self.clear_sudoku
+        )
+        self.sudoku_clear_button.pack(side="right", padx=8)
+
+        content = ttk.Frame(page)
+        content.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.sudoku_board_card = ttk.Frame(content, padding=14, style="Card.TFrame")
+        self.sudoku_board_card.pack(side="left", fill="both", expand=True)
+        self.sudoku_board = tk.Frame(self.sudoku_board_card, bg="#94a3b8")
+        self.sudoku_board_card.bind("<Configure>", self._resize_sudoku_board)
+        self.sudoku_cells = [[None for _ in range(9)] for _ in range(9)]
+        validate_digit = (self.root.register(self._valid_sudoku_entry), "%P")
+        for grid_index in range(11):
+            if grid_index in (3, 7):
+                self.sudoku_board.rowconfigure(grid_index, minsize=5)
+                self.sudoku_board.columnconfigure(grid_index, minsize=5)
+            else:
+                self.sudoku_board.rowconfigure(grid_index, weight=1, uniform="sudoku")
+                self.sudoku_board.columnconfigure(
+                    grid_index, weight=1, uniform="sudoku"
+                )
+        for row in range(9):
+            for column in range(9):
+                entry = tk.Entry(
+                    self.sudoku_board,
+                    width=2,
+                    justify="center",
+                    font=("TkDefaultFont", 17, "bold"),
+                    relief="flat",
+                    bd=0,
+                    bg="#f8fafc" if (row // 3 + column // 3) % 2 == 0 else "#ffffff",
+                    fg="#0f172a",
+                    insertbackground="#2563eb",
+                    validate="key",
+                    validatecommand=validate_digit,
+                )
+                entry.grid(
+                    row=row + row // 3,
+                    column=column + column // 3,
+                    sticky="nsew",
+                    padx=1,
+                    pady=1,
+                )
+                entry.bind(
+                    "<KeyRelease>",
+                    lambda event, r=row, c=column: self._advance_sudoku_cell(
+                        event, r, c
+                    ),
+                )
+                self.sudoku_cells[row][column] = entry
+
+        info_card = ttk.Frame(content, padding=18, style="Card.TFrame")
+        info_card.pack(side="left", fill="y", padx=(8, 0))
+        ttk.Label(info_card, text="Puzzle status", style="Section.TLabel").pack(anchor="w")
+        self.sudoku_status = tk.Label(
+            info_card,
+            text="Ready for a 9×9 puzzle.",
+            bg="#ffffff",
+            fg="#334155",
+            anchor="w",
+            justify="left",
+            wraplength=250,
+        )
+        self.sudoku_status.pack(fill="x", pady=(8, 14))
+        ttk.Separator(info_card).pack(fill="x", pady=(0, 12))
+        ttk.Label(
+            info_card,
+            text=(
+                "Digits 1–9 are clues. Leave a cell empty for the solver to fill it. "
+                "Encoding, DPLL trace, and performance are in Solver results."
+            ),
+            style="Muted.TLabel",
+            wraplength=250,
+            justify="left",
+        ).pack(anchor="w")
+        self.sudoku_metrics = tk.Label(
+            info_card,
+            text="Encoding, DPLL trace, and performance are in Solver results.",
+            bg="#ffffff",
+            fg="#64748b",
+            anchor="w",
+            justify="left",
+        )
+        self.sudoku_metrics.pack(fill="x", pady=(18, 0))
+
+    def _resize_sudoku_board(self, event):
+        size = max(1, min(event.width - 32, event.height - 32))
+        self.sudoku_board.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+            width=size,
+            height=size,
+        )
+
+    def _valid_sudoku_entry(self, value):
+        return not self.busy and (
+            value == "" or (len(value) == 1 and value in "0123456789")
+        )
+
+    def _advance_sudoku_cell(self, event, row, column):
+        if event.keysym in ("BackSpace", "Delete", "Left", "Right", "Up", "Down"):
+            return
+        value = self.sudoku_cells[row][column].get()
+        if value and value != "0":
+            next_index = row * 9 + column + 1
+            if next_index < 81:
+                next_row, next_column = divmod(next_index, 9)
+                self.sudoku_cells[next_row][next_column].focus_set()
+                self.sudoku_cells[next_row][next_column].icursor("end")
+
+    def _sudoku_grid(self):
+        return [
+            [
+                int(self.sudoku_cells[row][column].get() or 0)
+                for column in range(9)
+            ]
+            for row in range(9)
+        ]
+
+    def clear_sudoku(self):
+        for row in self.sudoku_cells:
+            for cell in row:
+                cell.delete(0, "end")
+                cell.configure(fg="#0f172a")
+        self.sudoku_metrics.configure(text="Solver metrics will appear here.")
+        self.sudoku_status.configure(text="Grid cleared.", fg="#334155")
+        self._clear_solver_results()
+
+    def _load_sudoku_grid(self, grid):
+        self.clear_sudoku()
+        for row, values in enumerate(grid):
+            for column, value in enumerate(values):
+                if value:
+                    cell = self.sudoku_cells[row][column]
+                    cell.insert(0, str(value))
+                    cell.configure(fg="#0f172a")
+
+    def generate_sudoku_puzzle(self):
+        try:
+            clue_count = int(self.sudoku_clue_count.get())
+            grid = generate_sudoku(clue_count)
+        except ValueError as error:
+            self.sudoku_status.configure(text="Error: " + str(error), fg="#b91c1c")
+            return
+        self._load_sudoku_grid(grid)
+        self.sudoku_status.configure(
+            text=(
+                "Random puzzle generated with {} clues; it has at least one solution."
+            ).format(clue_count),
+            fg="#334155",
+        )
+        self.sudoku_metrics.configure(
+            text="Generated puzzles are not checked for a unique solution."
+        )
+
+    def solve_sudoku(self):
+        grid = self._sudoku_grid()
+        self._start_job(
+            "Solving Sudoku...",
+            lambda: self.backend.sudoku(
+                grid,
+                trace_unit=self.trace_unit.get(),
+                trace_pure=self.trace_pure.get(),
+            ),
+            self._show_sudoku_result,
+            buttons=(
+                self.sudoku_solve_button,
+                self.sudoku_generate_button,
+                self.sudoku_clear_button,
+                self.sudoku_trace_unit_button,
+                self.sudoku_trace_pure_button,
+            ),
+            inputs=(
+                *[cell for row in self.sudoku_cells for cell in row],
+                self.sudoku_clue_count,
+                self.sudoku_trace_unit_button,
+                self.sudoku_trace_pure_button,
+            ),
+            status_widget=self.sudoku_status,
+        )
+
+    def _show_sudoku_result(self, response):
+        if not response.get("ok"):
+            self.sudoku_status.configure(
+                text="Error: " + response.get("error", "Sudoku solve failed."),
+                fg="#b91c1c",
+            )
+            return
+        satisfiable = response["satisfiable"]
+        if satisfiable:
+            for row, values in enumerate(response["grid"]):
+                for column, value in enumerate(values):
+                    cell = self.sudoku_cells[row][column]
+                    was_clue = cell.get() not in ("", "0")
+                    cell.delete(0, "end")
+                    cell.insert(0, str(value))
+                    cell.configure(fg="#0f172a" if was_clue else "#2563eb")
+            self.sudoku_status.configure(
+                text="Solved — a valid completion is shown in blue.",
+                fg="#047857",
+            )
+            solution = ["SAT — Sudoku solution"]
+            solution.extend(" ".join(map(str, row)) for row in response["grid"])
+        else:
+            self.sudoku_status.configure(
+                text="No solution exists for these clues.",
+                fg="#b91c1c",
+            )
+            self.sudoku_metrics.configure(text="Try correcting one or more clues.")
+            solution = ["UNSAT — no completion satisfies these clues."]
+
+        encoding = [
+            "Sudoku encoding: direct CNF",
+            "Exactly one digit is selected for each cell.",
+            "At most one of each digit appears in each row, column, and 3×3 box.",
+            "",
+            "Variables: {}".format(response["variable_count"]),
+            "Clues: {}".format(response["clue_count"]),
+            "Clauses: {}".format(response["clause_count"]),
+            "Literals: {}".format(response["literal_count"]),
+        ]
+        metrics = [
+            ("Problem", "Sudoku"),
+            ("Variables", response["variable_count"]),
+            ("Clues", response["clue_count"]),
+            ("Clauses", response["clause_count"]),
+            ("Literals", response["literal_count"]),
+            ("Encoding time (ms)", "{:.3f}".format(response["encoding_time_ms"])),
+            ("Selected solver time (ms)", "{:.3f}".format(response["solver_time_ms"])),
+            ("Selected decisions", response["decisions"]),
+            ("Selected backtracks", response["backtracks"]),
+        ]
+        self._show_solver_results(
+            "Sudoku",
+            "\n".join(solution),
+            "\n".join(encoding),
+            metrics,
+            response["comparisons"],
+            response["trace"],
+        )
 
     def _add_puzzle_text_tab(self, title):
         frame = tk.Frame(self.puzzle_results, bg="white")
@@ -322,94 +901,102 @@ class SatGui:
         frame.columnconfigure(0, weight=1)
         return text
 
-    def _update_edge_ranges(self, _event=None):
+    def _puzzle_dimensions_changed(self, _event=None):
         try:
             nodes = int(self.node_count.get())
+            colours = int(self.colour_count.get())
         except ValueError:
             return
-        if nodes < 1 or nodes > 12:
+        if not (3 <= nodes <= 100 and 1 <= colours <= 12):
             return
-        for selector in (self.edge_first, self.edge_second):
-            selector.configure(to=nodes)
-            if int(selector.get()) > nodes:
-                selector.delete(0, "end")
-                selector.insert(0, str(nodes))
-
-    def _puzzle_dimensions_changed(self, _event=None):
-        self._update_edge_ranges()
+        self.puzzle_edges = [
+            (first, second)
+            for first, second in self.puzzle_edges
+            if first <= nodes and second <= nodes
+        ]
+        self.selected_node = None
         self._clear_puzzle_results()
+        self._refresh_edge_list()
         self.puzzle_status.configure(
             text="Graph dimensions changed. Solve again to refresh results.",
             fg="black",
-        )
-
-    def _load_puzzle_example(self, _event=None):
-        self.node_count.delete(0, "end")
-        self.node_count.insert(0, "3")
-        self._update_edge_ranges()
-        if self.puzzle_example.get() == "Triangle with 3 colours (SAT)":
-            self.colour_count.delete(0, "end")
-            self.colour_count.insert(0, "3")
-        else:
-            self.colour_count.delete(0, "end")
-            self.colour_count.insert(0, "2")
-        self.puzzle_edges = [(1, 2), (2, 3), (3, 1)]
-        self._refresh_edge_list()
-        self._clear_puzzle_results()
-        self.puzzle_status.configure(
-            text="Example loaded. Select Solve puzzle to run the solver.", fg="black"
         )
 
     def _refresh_edge_list(self):
         self.edge_list.delete(0, "end")
         for first, second in self.puzzle_edges:
             self.edge_list.insert("end", "{} - {}".format(first, second))
+        self._draw_graph()
 
-    def _clear_puzzle_results(self):
-        self._set_text(self.puzzle_solution, "Solve a graph to see its colouring.")
-        self._set_text(self.puzzle_encoding, "Solve a graph to see its SAT encoding.")
-        self._set_text(self.puzzle_trace, "Solve a graph to see its DPLL trace.")
-        self.puzzle_metrics.delete(*self.puzzle_metrics.get_children())
-        self.puzzle_comparison.delete(*self.puzzle_comparison.get_children())
-
-    def add_edge(self):
+    def _draw_graph(self):
         try:
             nodes = int(self.node_count.get())
-            first = int(self.edge_first.get())
-            second = int(self.edge_second.get())
         except ValueError:
+            return
+        if 3 <= nodes <= 100:
+            self.graph_canvas.update_graph(
+                nodes,
+                self.puzzle_edges,
+                self.puzzle_colouring,
+                self.selected_node,
+            )
+
+    def _clear_puzzle_results(self):
+        self.puzzle_colouring = []
+        self._clear_solver_results()
+        self._draw_graph()
+
+    def _clear_solver_results(self):
+        self._set_text(
+            self.puzzle_solution,
+            "Solve a graph or Sudoku puzzle to see its solution.",
+        )
+        self._set_text(
+            self.puzzle_encoding,
+            "Solve a graph or Sudoku puzzle to see its encoding.",
+        )
+        self._set_text(
+            self.puzzle_trace,
+            "Solve a graph or Sudoku puzzle to see its DPLL trace.",
+        )
+        self.puzzle_metrics.delete(*self.puzzle_metrics.get_children())
+        self.puzzle_metrics.insert(
+            "", "end", values=("Solve a puzzle to see metrics.", "")
+        )
+        self.puzzle_comparison.delete(*self.puzzle_comparison.get_children())
+        self.puzzle_comparison.insert(
+            "",
+            "end",
+            values=("Solve a puzzle to compare heuristics.", "", "", "", "", ""),
+        )
+
+    def _graph_node_clicked(self, node):
+        if self.busy:
+            return
+        if self.selected_node is None:
+            self.selected_node = node
+            self._draw_graph()
             self.puzzle_status.configure(
-                text="Error: enter whole numbers for nodes and edge endpoints.",
-                fg="#b00020",
+                text="Node {} selected. Choose another node to connect it.".format(node),
+                fg="#334155",
             )
             return
-        if nodes < 1 or nodes > 12:
-            self.puzzle_status.configure(
-                text="Error: node count must be between 1 and 12.", fg="#b00020"
-            )
-            return
-        if not (1 <= first <= nodes and 1 <= second <= nodes):
-            self.puzzle_status.configure(
-                text="Error: edge endpoints must be between 1 and {}.".format(nodes),
-                fg="#b00020",
-            )
-            return
+        first, second = self.selected_node, node
+        self.selected_node = None
         if first == second:
-            self.puzzle_status.configure(
-                text="Error: self-loops are not allowed.", fg="#b00020"
-            )
+            self._draw_graph()
+            self.puzzle_status.configure(text="A node cannot connect to itself.", fg="#b91c1c")
             return
         edge = (min(first, second), max(first, second))
         if edge in self.puzzle_edges:
-            self.puzzle_status.configure(
-                text="Error: that edge already exists.", fg="#b00020"
-            )
+            self._draw_graph()
+            self.puzzle_status.configure(text="That connection already exists.", fg="#b91c1c")
             return
         self.puzzle_edges.append(edge)
         self._refresh_edge_list()
         self._clear_puzzle_results()
         self.puzzle_status.configure(
-            text="Edge {} - {} added.".format(*edge), fg="black"
+            text="Connected nodes {} and {}.".format(*edge), fg="#334155"
         )
 
     def remove_selected_edge(self):
@@ -426,6 +1013,13 @@ class SatGui:
             text="Edge {} - {} removed.".format(*removed), fg="black"
         )
 
+    def clear_graph(self):
+        self.puzzle_edges = []
+        self.selected_node = None
+        self._refresh_edge_list()
+        self._clear_puzzle_results()
+        self.puzzle_status.configure(text="Graph cleared.", fg="#334155")
+
     def solve_puzzle(self):
         try:
             nodes = int(self.node_count.get())
@@ -436,9 +1030,9 @@ class SatGui:
                 fg="#b00020",
             )
             return
-        if not (1 <= nodes <= 12):
+        if not (3 <= nodes <= 100):
             self.puzzle_status.configure(
-                text="Error: node count must be between 1 and 12.", fg="#b00020"
+                text="Use between 3 and 100 nodes.", fg="#b00020"
             )
             return
         if not (1 <= colours <= 12):
@@ -457,12 +1051,24 @@ class SatGui:
         edges = list(self.puzzle_edges)
         self._start_job(
             "Solving graph-colouring puzzle...",
-            lambda: self.backend.puzzle(nodes, colours, edges),
+            lambda: self.backend.puzzle(
+                nodes,
+                colours,
+                edges,
+                trace_unit=self.trace_unit.get(),
+                trace_pure=self.trace_pure.get(),
+            ),
             self._show_puzzle_result,
             buttons=(
                 self.solve_puzzle_button,
-                self.add_edge_button,
                 self.remove_edge_button,
+                self.clear_graph_button,
+            ),
+            inputs=(
+                self.node_count,
+                self.colour_count,
+                self.trace_unit_button,
+                self.trace_pure_button,
             ),
             status_widget=self.puzzle_status,
         )
@@ -476,10 +1082,12 @@ class SatGui:
             return
         satisfiable = response["satisfiable"]
         if satisfiable:
+            self.puzzle_colouring = response["colouring"]
             self.puzzle_status.configure(
-                text="SAT — Valid colouring: {}".format(
-                    "YES" if response["valid_coloring"] else "NO"
-                ),
+                text=(
+                    "SAT — Valid colouring: {}. See Solver results for "
+                    "encoding, trace, and performance."
+                ).format("YES" if response["valid_coloring"] else "NO"),
                 fg="#176b2c",
             )
             solution = [
@@ -494,18 +1102,19 @@ class SatGui:
                 for index, colour in enumerate(response["colouring"], 1)
             )
         else:
+            self.puzzle_colouring = []
             self.puzzle_status.configure(
-                text="UNSAT — No valid colouring with {} colours.".format(
-                    response["colours"]
-                ),
+                text=(
+                    "UNSAT — No valid colouring with {} colours. "
+                    "See Solver results for encoding, trace, and performance."
+                ).format(response["colours"]),
                 fg="#b00020",
             )
             solution = [
                 "UNSAT",
                 "No valid colouring with {} colours.".format(response["colours"]),
             ]
-        self._set_text(self.puzzle_solution, "\n".join(solution))
-
+        self._draw_graph()
         encoding = [
             "Graph-colouring constraints:",
             "1. Each node has at least one colour.",
@@ -528,8 +1137,6 @@ class SatGui:
             "Literals: {}".format(response["literal_count"]),
             "Formula length: {}".format(response["formula_length"]),
         ]
-        self._set_text(self.puzzle_encoding, "\n".join(encoding))
-
         metrics = [
             ("Nodes", response["nodes"]),
             ("Colours", response["colours"]),
@@ -542,12 +1149,26 @@ class SatGui:
             ("Parsing time (ms)", "{:.3f}".format(response["parsing_time_ms"])),
             ("CNF conversion time (ms)", "{:.3f}".format(response["cnf_time_ms"])),
         ]
+        self._show_solver_results(
+            "Graph colouring",
+            "\n".join(solution),
+            "\n".join(encoding),
+            metrics,
+            response["comparisons"],
+            response["trace"],
+        )
+
+    def _show_solver_results(
+        self, problem, solution, encoding, metrics, comparisons, trace
+    ):
+        self._set_text(self.puzzle_solution, solution)
+        self._set_text(self.puzzle_encoding, encoding)
         self.puzzle_metrics.delete(*self.puzzle_metrics.get_children())
         for name, value in metrics:
             self.puzzle_metrics.insert("", "end", values=(name, value))
 
         self.puzzle_comparison.delete(*self.puzzle_comparison.get_children())
-        for result in response["comparisons"]:
+        for result in comparisons:
             self.puzzle_comparison.insert(
                 "",
                 "end",
@@ -561,15 +1182,22 @@ class SatGui:
                 ),
             )
 
-        trace_lines = []
-        for event in response["trace"]["events"]:
-            trace_lines.append(self._event_text(event))
-        if response["trace"]["trace_truncated"]:
+        trace_lines = [
+            "Problem: {}".format(problem),
+            "Selected trace heuristics: unit propagation {}, pure literal {}".format(
+                "ON" if self.trace_unit.get() else "OFF",
+                "ON" if self.trace_pure.get() else "OFF",
+            ),
+            "",
+        ]
+        trace_lines.extend(self._event_text(event) for event in trace["events"])
+        if trace["trace_truncated"]:
             trace_lines.append("Trace truncated at the configured event limit.")
-        self._set_text(
-            self.puzzle_trace,
-            "\n".join(trace_lines) if trace_lines else "No trace events were recorded.",
-        )
+        if not trace["events"]:
+            trace_lines.append("No trace events were recorded.")
+        self._set_text(self.puzzle_trace, "\n".join(trace_lines))
+        self.puzzle_results.select(3)
+        self.tabs.select(self.solver_results_tab)
 
     def _load_example(self, _event=None):
         self.formula.delete("1.0", "end")
@@ -611,6 +1239,7 @@ class SatGui:
         on_success,
         cancel_event=None,
         buttons=None,
+        inputs=None,
         status_widget=None,
     ):
         if self.busy:
@@ -624,6 +1253,9 @@ class SatGui:
         )
         if buttons:
             self.active_job_buttons += tuple(buttons)
+        self.active_job_inputs = tuple(inputs or ())
+        for widget in self.active_job_inputs:
+            widget.configure(state="disabled")
         self.active_job_status = (
             status_widget if status_widget is not None else self.status
         )
@@ -651,6 +1283,9 @@ class SatGui:
                 for button in self.active_job_buttons:
                     button.configure(state="normal")
                 self.active_job_buttons = ()
+                for widget in self.active_job_inputs:
+                    widget.configure(state="normal")
+                self.active_job_inputs = ()
                 status_widget = (
                     self.active_job_status
                     if self.active_job_status is not None

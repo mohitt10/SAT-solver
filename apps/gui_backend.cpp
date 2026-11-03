@@ -6,6 +6,7 @@
 #include "truth_table.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -461,8 +462,167 @@ std::string puzzle_json(const Options& options, std::istream& input) {
     return out.str();
 }
 
+std::string sudoku_variable(int row, int column, int digit) {
+    return "r" + std::to_string(row + 1) + "c" +
+           std::to_string(column + 1) + "d" + std::to_string(digit + 1);
+}
+
+void add_at_most_one(CNF& cnf, const std::vector<std::string>& variables) {
+    for (std::size_t first = 0; first < variables.size(); ++first) {
+        for (std::size_t second = first + 1; second < variables.size(); ++second) {
+            Clause at_most_one;
+            at_most_one.addLiteral(Literal(variables[first], true));
+            at_most_one.addLiteral(Literal(variables[second], true));
+            cnf.addClause(at_most_one);
+        }
+    }
+}
+
+void add_exactly_one(CNF& cnf, const std::vector<std::string>& variables) {
+    Clause at_least_one;
+    for (const std::string& variable : variables) {
+        at_least_one.addLiteral(Literal(variable, false));
+    }
+    cnf.addClause(at_least_one);
+    add_at_most_one(cnf, variables);
+}
+
+std::string sudoku_json(const Options& options, std::istream& input) {
+    std::array<int, 81> clues{};
+    for (int& value : clues) {
+        if (!(input >> value) || value < 0 || value > 9) {
+            throw std::invalid_argument(
+                "Sudoku input must contain exactly 81 digits from 0 to 9.");
+        }
+    }
+    std::string extra;
+    if (input >> extra) {
+        throw std::invalid_argument(
+            "Sudoku input must contain exactly 81 digits from 0 to 9.");
+    }
+    if (!input.eof()) {
+        throw std::invalid_argument("Invalid Sudoku input.");
+    }
+
+    const auto encode_start = std::chrono::steady_clock::now();
+    CNF cnf;
+    for (int row = 0; row < 9; ++row) {
+        for (int column = 0; column < 9; ++column) {
+            std::vector<std::string> candidates;
+            for (int digit = 0; digit < 9; ++digit) {
+                candidates.push_back(sudoku_variable(row, column, digit));
+            }
+            add_exactly_one(cnf, candidates);
+
+            const int clue = clues[static_cast<std::size_t>(row * 9 + column)];
+            if (clue != 0) {
+                Clause fixed_value;
+                fixed_value.addLiteral(Literal(
+                    sudoku_variable(row, column, clue - 1), false));
+                cnf.addClause(fixed_value);
+            }
+        }
+    }
+
+    // Cell exact-one constraints and digit at-most-one constraints imply each
+    // row, column, and box contains every digit exactly once.
+    for (int row = 0; row < 9; ++row) {
+        for (int digit = 0; digit < 9; ++digit) {
+            std::vector<std::string> candidates;
+            for (int column = 0; column < 9; ++column) {
+                candidates.push_back(sudoku_variable(row, column, digit));
+            }
+            add_at_most_one(cnf, candidates);
+        }
+    }
+
+    for (int column = 0; column < 9; ++column) {
+        for (int digit = 0; digit < 9; ++digit) {
+            std::vector<std::string> candidates;
+            for (int row = 0; row < 9; ++row) {
+                candidates.push_back(sudoku_variable(row, column, digit));
+            }
+            add_at_most_one(cnf, candidates);
+        }
+    }
+
+    for (int box_row = 0; box_row < 9; box_row += 3) {
+        for (int box_column = 0; box_column < 9; box_column += 3) {
+            for (int digit = 0; digit < 9; ++digit) {
+                std::vector<std::string> candidates;
+                for (int row_offset = 0; row_offset < 3; ++row_offset) {
+                    for (int column_offset = 0; column_offset < 3; ++column_offset) {
+                        candidates.push_back(sudoku_variable(
+                            box_row + row_offset,
+                            box_column + column_offset,
+                            digit));
+                    }
+                }
+                add_at_most_one(cnf, candidates);
+            }
+        }
+    }
+
+    const auto encode_end = std::chrono::steady_clock::now();
+    SolverConfig trace_config;
+    trace_config.use_unit_prop = enabled(options.trace_unit);
+    trace_config.use_pure_literal = enabled(options.trace_pure);
+    trace_config.record_trace = true;
+    trace_config.trace_limit = options.trace_limit;
+    const SolverResult traced = solve(cnf, trace_config);
+
+    std::ostringstream out;
+    out << "{\"ok\":true,\"satisfiable\":"
+        << (traced.is_sat ? "true" : "false")
+        << ",\"grid\":[";
+    for (int row = 0; row < 9; ++row) {
+        if (row != 0) out << ',';
+        out << '[';
+        for (int column = 0; column < 9; ++column) {
+            if (column != 0) out << ',';
+            int digit_value = 0;
+            if (traced.is_sat) {
+                for (int digit = 0; digit < 9; ++digit) {
+                    const auto assignment = traced.final_assignments.find(
+                        sudoku_variable(row, column, digit));
+                    if (assignment != traced.final_assignments.end() &&
+                        assignment->second) {
+                        digit_value = digit + 1;
+                        break;
+                    }
+                }
+            }
+            out << digit_value;
+        }
+        out << ']';
+    }
+    const auto milliseconds = [](auto start, auto end) {
+        return std::chrono::duration<double, std::milli>(end - start).count();
+    };
+    out << "],\"variable_count\":729"
+        << ",\"clue_count\":"
+        << std::count_if(clues.begin(), clues.end(), [](int clue) { return clue != 0; })
+        << ",\"clause_count\":" << cnf.size()
+        << ",\"literal_count\":" << literal_count(cnf)
+        << ",\"encoding_time_ms\":" << milliseconds(encode_start, encode_end)
+        << ",\"solver_time_ms\":" << traced.total_execution_time_ms
+        << ",\"decisions\":" << traced.decision_count
+        << ",\"backtracks\":" << traced.backtrack_count
+        << ",\"comparisons\":[{\"unit_propagation\":"
+        << (trace_config.use_unit_prop ? "true" : "false")
+        << ",\"pure_literal\":"
+        << (trace_config.use_pure_literal ? "true" : "false")
+        << ",\"satisfiable\":" << (traced.is_sat ? "true" : "false")
+        << ",\"solver_time_ms\":" << traced.total_execution_time_ms
+        << ",\"decisions\":" << traced.decision_count
+        << ",\"backtracks\":" << traced.backtrack_count
+        << "}],\"trace\":" << trace_json(traced) << '}';
+    return out.str();
+}
+
 std::string run(const Options& options, std::istream& input) {
     if (options.operation == "puzzle") return puzzle_json(options, input);
+    if (options.operation == "sudoku") return sudoku_json(options, input);
     const std::string source((std::istreambuf_iterator<char>(input)),
                              std::istreambuf_iterator<char>());
     const NodePtr formula = parseFormula(source);

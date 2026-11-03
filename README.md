@@ -75,18 +75,26 @@ than 24 distinct variables by default.
 
 ## GUI
 
-The Tkinter GUI supports two problem modes:
+The Tkinter GUI supports three problem modes:
 
-- **Graph coloring**: choose vertices and colours, then add edges on the canvas.
+- **Graph colouring**: click two circular nodes to add an edge, then solve to
+  see the colouring. Graphs support up to 100 nodes. Graph and Sudoku use the
+  shared **Solver results** tab for solutions, encoding, DPLL trace, metrics,
+  and heuristic performance. Graph mode compares all four heuristic
+  combinations; Sudoku reports the selected combination.
 - **Formula SAT**: enter any propositional formula using `~`, `&`, `|`, `->`,
   and `<->`. Syntax is checked as you type; select a CNF pipeline and solve to
   see SAT/UNSAT, a satisfying assignment, and solver statistics.
+- **Sudoku**: enter clues in a 9×9 grid or generate a randomized puzzle with a
+  chosen clue count, then solve to fill the remaining cells. Unit propagation
+  and pure-literal options are available for the selected trace. Generated
+  puzzles are solvable but are not checked for uniqueness.
 
-Both modes let you choose the NNF-to-CNF or Tseitin pipeline.
+Formula solving supports NNF-to-CNF and Tseitin pipelines.
 
-For graph coloring, a satisfying result is shown directly on the graph;
-unsatisfiable graphs are reported in the status area. Right-click to cancel an
-in-progress edge, or use **Clear edges** to start over.
+For graph colouring, a satisfying result is shown directly on the graph;
+unsatisfiable graphs are reported in the status area. Select an edge and use
+**Remove selected** to delete it, or use **Clear graph** to start over.
 
 Build its C++ backend and launch the Python interface with:
 

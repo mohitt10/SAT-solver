@@ -57,8 +57,26 @@ Example standard input:
 The response includes the decoded colouring and validity when SAT, graph and
 formula sizes, encoding/parsing/CNF times, four DPLL comparisons (unit
 propagation on/off crossed with pure-literal elimination on/off), and the
-selected comparison's bounded trace. The default trace configuration enables
-both optimizations. Puzzle truth tables are not generated.
+selected comparison's bounded trace. The GUI lets users choose which of the
+two heuristics are enabled in the trace; the performance comparison always
+runs all four combinations. The default trace configuration enables both
+optimizations. Puzzle truth tables are not generated.
+
+## Sudoku request
+
+Sudoku requests send 81 space-separated digits on standard input, in row-major
+order. Use `0` for an empty cell:
+
+```text
+sat_solver_backend --gui sudoku --trace-unit on --trace-pure on
+```
+
+The backend validates the input, encodes the cell, row, column, and 3×3-box
+constraints as CNF, and returns `satisfiable`, a 9×9 solved grid when SAT,
+encoding statistics, the selected solver configuration's metrics, and a
+bounded trace using the selected `--trace-unit` and `--trace-pure` settings.
+Unlike graph-colouring requests, Sudoku runs only the selected configuration
+so the optional performance comparison does not multiply solve time.
 
 ## Trace events
 
