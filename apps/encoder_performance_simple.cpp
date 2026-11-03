@@ -97,7 +97,6 @@ class PerformanceTester {
                      << "Backtracks\n";
 
                 for(int i = 0; i < 4; i++) {
-                    if (i %2 == 000.0) continue;
                     SolverResult result = solve(cnf, configs[i]);
                     const double current_time = result.total_execution_time_ms;
 

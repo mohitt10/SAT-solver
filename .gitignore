@@ -6,4 +6,5 @@
 /performance.exe
 /sat_solver_backend
 /sat_solver_backend.exe
+/sudoku
 __pycache__/
