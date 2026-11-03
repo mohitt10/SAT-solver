@@ -35,11 +35,11 @@ to solve graph-colouring instances.
 
 ## Build and run
 
-Build and run the command-line SAT solver:
+Build and run the command-line SAT solver by feeding the command through stdin:
 
 ```sh
 make
-./sat_solver "(A & ~B) -> C"
+printf '%s\n' '--truth-table --pipeline nnf "(A & ~B) -> C"' | ./sat_solver
 ```
 
 On Windows with MinGW, use `mingw32-make` to build and run the generated
@@ -47,7 +47,7 @@ executable from PowerShell:
 
 ```powershell
 mingw32-make
-.\sat_solver.exe "(A & ~B) -> C"
+"--truth-table --pipeline nnf (A & ~B) -> C" | .\sat_solver.exe
 ```
 
 The output includes the formula in NNF, its SAT/UNSAT result, a satisfying
@@ -57,7 +57,7 @@ Choose direct Tseitin encoding instead of NNF conversion and distribution
 with:
 
 ```sh
-./sat_solver --pipeline tseitin "(A <-> B) -> (C | ~A)"
+printf '%s\n' '--pipeline tseitin "(A <-> B) -> (C | ~A)"' | ./sat_solver
 ```
 
 The default is `--pipeline nnf`. The `--truth-table` option can be combined
@@ -67,7 +67,7 @@ satisfying assignment.
 Generate and classify a truth table as well:
 
 ```sh
-./sat_solver --truth-table "(A & ~B) -> C"
+printf '%s\n' '--truth-table "(A & ~B) -> C"' | ./sat_solver
 ```
 
 Truth-table generation is opt-in; the engine guards against formulas with more

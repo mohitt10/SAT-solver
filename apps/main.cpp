@@ -2,13 +2,55 @@
 #include "parser.h"
 #include "truth_table.h"
 #include "sat_types.hpp"
+#include <cctype>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 using namespace std;
 
 namespace {
+
+vector<string> tokenize_stdin_input(const string& input) {
+    vector<string> tokens;
+    string current;
+    bool in_quotes = false;
+
+    for (char ch : input) {
+        if (ch == '"') {
+            in_quotes = !in_quotes;
+            continue;
+        }
+
+        if (isspace(static_cast<unsigned char>(ch)) && !in_quotes) {
+            if (!current.empty()) {
+                tokens.push_back(current);
+                current.clear();
+            }
+            continue;
+        }
+
+        current.push_back(ch);
+    }
+
+    if (!current.empty()) {
+        tokens.push_back(current);
+    }
+
+    return tokens;
+}
+
+string join_tokens(const vector<string>& tokens, size_t start_index) {
+    string result;
+    for (size_t index = start_index; index < tokens.size(); ++index) {
+        if (index > start_index) {
+            result += ' ';
+        }
+        result += tokens[index];
+    }
+    return result;
+}
 
 class FormulaFormatter : public Visitor {
 public:
@@ -46,22 +88,32 @@ private:
 
 } // namespace
 
-int main(int argc, char* argv[]) {
+int main() {
     bool show_truth_table = false;
     CnfPipeline pipeline = CnfPipeline::Nnf;
     string formula;
     bool have_formula = false;
 
-    for (int index = 1; index < argc; ++index) {
-        const string argument = argv[index];
+    string raw_input;
+    string line;
+    while (getline(cin, line)) {
+        if (!raw_input.empty()) {
+            raw_input += '\n';
+        }
+        raw_input += line;
+    }
+
+    const vector<string> arguments = tokenize_stdin_input(raw_input);
+    for (size_t index = 0; index < arguments.size(); ++index) {
+        const string& argument = arguments[index];
         if (argument == "--truth-table") {
             show_truth_table = true;
         } else if (argument == "--pipeline") {
-            if (index + 1 >= argc) {
+            if (index + 1 >= arguments.size()) {
                 cerr << "Option --pipeline requires nnf or tseitin.\n";
                 return 2;
             }
-            const string choice = argv[++index];
+            const string choice = arguments[++index];
             if (choice == "nnf") {
                 pipeline = CnfPipeline::Nnf;
             } else if (choice == "tseitin") {
@@ -72,8 +124,9 @@ int main(int argc, char* argv[]) {
                 return 2;
             }
         } else if (!have_formula) {
-            formula = argument;
+            formula = join_tokens(arguments, index);
             have_formula = true;
+            break;
         } else {
             cerr << "Only one formula argument is allowed.\n";
             return 2;
@@ -81,8 +134,8 @@ int main(int argc, char* argv[]) {
     }
 
     if (!have_formula) {
-        cerr << "Usage: " << argv[0]
-             << " [--truth-table] [--pipeline nnf|tseitin] \"FORMULA\"\n";
+        cerr << "Usage: provide the options and formula on stdin, for example:\n"
+             << "  --truth-table --pipeline nnf \"(A & ~B) -> C\"\n";
         return 2;
     }
 
