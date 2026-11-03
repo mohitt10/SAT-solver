@@ -4,9 +4,10 @@
 #include <iostream>
 
 using namespace std;
-//v : Total number of unique variables in the formula.
-//c : Number of clauses
 
+//[ADDED FOR GUI TRACING/GRAPH COLORING]
+// These helper functions power the Qt GUI's visual tracing system.
+// They record exactly what the solver is doing so it can be animated on screen.
 namespace {
 
 void record_event(
@@ -65,13 +66,20 @@ void record_conflicts(
 }
 
 } // namespace
+// GUI namespace ends
+
+
+//v : Total number of unique variables in the formula.
+//c : Number of clauses
 
 // O(C+V) 
 //assigned_lit is assumed to be marked true
+// [ADDED FOR GUI TRACING]: Added an optional pointer argument to collect empty conflict clauses
 CNF assign_literal(
     CNF current_cnf,
     Literal assigned_lit,
     vector<vector<Literal>>* conflict_clauses = nullptr) {
+    
     CNF simplified;
 
     vector<Clause> current_clauses = current_cnf.getClauses();
@@ -94,9 +102,12 @@ CNF assign_literal(
                 shrunk.addLiteral(lit);
             }
         }
+        
+        // [ADDED FOR GUI TRACING]: Logs if we accidentally shrunk a clause to emptiness
         if (shrunk.isEmpty() && conflict_clauses != nullptr) {
             conflict_clauses->push_back(lits);
         }
+        
         simplified.addClause(shrunk);
     }
     return simplified;
@@ -162,6 +173,7 @@ bool find_pure_literal(CNF cnf, Literal& out_literal) {
 
 // Recursive DPLL 
 //O((2^V)*C)
+// [ADDED FOR GUI TRACING]: Added decision_level and conflict tracking defaults to signature
 bool dpll_recursive(
     CNF cnf,
     unordered_map<string, bool>& assignments,
@@ -179,6 +191,7 @@ bool dpll_recursive(
     vector<Clause> clauses = cnf.getClauses();
     for (int i = 0; i < clauses.size(); i++) {
         if (clauses[i].isEmpty()) {
+            // [ADDED FOR GUI TRACING]: Logs conflict event
             if (!conflict_previously_recorded) {
                 record_event(stats, config,
                              {SolverEventType::Conflict, {}, false, decision_level,
@@ -196,13 +209,18 @@ bool dpll_recursive(
     //O(V*C)
     Literal unit_lit;
     while (config.use_unit_prop && find_unit_literal(cnf, unit_lit)) {
+        
+        // [ADDED FOR GUI TRACING]: Logs unit propagation event
         if (config.record_trace) {
             record_event(stats, config,
                          {SolverEventType::UnitPropagation,
                           unit_lit.getVariable(), !unit_lit.isNegated(),
                           decision_level, find_clause_for_unit(cnf, unit_lit), {}});
         }
+        
         assignments[unit_lit.getVariable()] = !unit_lit.isNegated();
+        
+        // [ADDED FOR GUI TRACING]: Captures any clauses that became empty during assignment
         vector<vector<Literal>> conflicts;
         cnf = assign_literal(
             cnf, unit_lit, config.record_trace ? &conflicts : nullptr);
@@ -214,13 +232,19 @@ bool dpll_recursive(
         for (int i = 0; i < new_clauses.size(); i++) {
             if (new_clauses[i].isEmpty()) { //If any clause is empty it means that all the literals are guesses false
                 stats.backtrack_count++;
+                
+                // [ADDED FOR GUI TRACING]: Logs what assignments we had to reverse
                 const auto undone = config.record_trace
                     ? assignments_to_undo(assignments, checkpoint)
                     : vector<pair<string, bool>>{};
+                
                 assignments = checkpoint; // Undo
+                
+                // [ADDED FOR GUI TRACING]
                 record_event(stats, config,
                              {SolverEventType::Backtrack, {}, false,
                               decision_level, {}, undone});
+                              
                 return false; 
             }
         }
@@ -230,11 +254,16 @@ bool dpll_recursive(
     //O(V*C)
     Literal pure_lit;
     while (config.use_pure_literal && find_pure_literal(cnf, pure_lit)) {
+        
+        // [ADDED FOR GUI TRACING]: Logs pure literal event
         record_event(stats, config,
                      {SolverEventType::PureLiteral,
                       pure_lit.getVariable(), !pure_lit.isNegated(),
                       decision_level, {}, {}});
+                      
         assignments[pure_lit.getVariable()] = !pure_lit.isNegated();
+        
+        // [ADDED FOR GUI TRACING]: Captures conflicts
         vector<vector<Literal>> conflicts;
         cnf = assign_literal(
             cnf, pure_lit, config.record_trace ? &conflicts : nullptr);
@@ -246,13 +275,19 @@ bool dpll_recursive(
         for (int i = 0; i < new_clauses.size(); i++) {
             if (new_clauses[i].isEmpty()) {
                 stats.backtrack_count++;
+                
+                // [ADDED FOR GUI TRACING]
                 const auto undone = config.record_trace
                     ? assignments_to_undo(assignments, checkpoint)
                     : vector<pair<string, bool>>{};
+                    
                 assignments = checkpoint; //undo
+                
+                // [ADDED FOR GUI TRACING]
                 record_event(stats, config,
                              {SolverEventType::Backtrack, {}, false,
                               decision_level, {}, undone});
+                              
                 return false; 
             }
         }
@@ -265,17 +300,23 @@ bool dpll_recursive(
     Clause first_clause = cnf.getClauses()[0];
     Literal branch_lit = first_clause.getLiterals()[0];
     string var_name = branch_lit.getVariable();
+    
+    // [ADDED FOR GUI TRACING]
     unordered_map<string, bool> branch_checkpoint;
     if (config.record_trace) {
         branch_checkpoint = assignments;
     }
 
     // Guess True
+    // [ADDED FOR GUI TRACING]
     record_event(stats, config,
                  {SolverEventType::Decision, var_name, true,
                   decision_level + 1, {}, {}});
+                  
     assignments[var_name] = true;
     Literal guess_true(var_name, false); 
+    
+    // [ADDED FOR GUI TRACING]: Pass conflict struct and increment decision tree depth
     vector<vector<Literal>> true_conflicts;
     CNF cnf_if_true = assign_literal(
         cnf, guess_true, config.record_trace ? &true_conflicts : nullptr);
@@ -287,16 +328,22 @@ bool dpll_recursive(
     }
 
     // Guess False (Implicit Backtrack)
+    // [ADDED FOR GUI TRACING]
     if (config.record_trace) {
         record_event(stats, config,
                      {SolverEventType::Backtrack, {}, false, decision_level,
                       {}, assignments_to_undo(assignments, branch_checkpoint)});
     }
+    
+    // [ADDED FOR GUI TRACING]
     record_event(stats, config,
                  {SolverEventType::Decision, var_name, false,
                   decision_level + 1, {}, {}});
+                  
     assignments[var_name] = false;
     Literal guess_false(var_name, true);
+    
+    // [ADDED FOR GUI TRACING]
     vector<vector<Literal>> false_conflicts;
     CNF cnf_if_false = assign_literal(
         cnf, guess_false, config.record_trace ? &false_conflicts : nullptr);
@@ -308,13 +355,18 @@ bool dpll_recursive(
     }
 
     // Total Failure: Undo and backtrack
+    // [ADDED FOR GUI TRACING]
     const auto undone = config.record_trace
         ? assignments_to_undo(assignments, checkpoint)
         : vector<pair<string, bool>>{};
+        
     assignments = checkpoint;
+    
+    // [ADDED FOR GUI TRACING]
     record_event(stats, config,
                  {SolverEventType::Backtrack, {}, false, decision_level,
                   {}, undone});
+                  
     return false;
 }
 
@@ -331,6 +383,7 @@ SolverResult solve(CNF initial_cnf, SolverConfig config) {
     chrono::duration<double, milli> duration = end - start;
     result.total_execution_time_ms = duration.count();
 
+    // [ADDED FOR GUI TRACING]
     record_event(result, config,
                  {SolverEventType::Result, {}, result.is_sat, 0, {}, {}});
 
