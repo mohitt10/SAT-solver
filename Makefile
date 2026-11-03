@@ -29,6 +29,7 @@ GRAPH_COLORING_SOURCES := src/graph/graph_coloring.cpp $(SAT_SOLVER_SOURCES)
 
 WORKLET1_TEST := $(BUILD_DIR)/worklet1_tests$(EXE_EXT)
 WORKLET1_INTEGRATION_TEST := $(BUILD_DIR)/worklet_1_integration_testing$(EXE_EXT)
+WORKLET1_CLI := $(BUILD_DIR)/worklet1_cli$(EXE_EXT)
 CNF_TEST := $(BUILD_DIR)/worklet_2_nnf_to_cnf_unit_test$(EXE_EXT)
 DPLL_TEST := $(BUILD_DIR)/worklet_2_dpll_unit_test$(EXE_EXT)
 INTEGRATION_TEST := $(BUILD_DIR)/worklet_2_integration_testing$(EXE_EXT)
@@ -38,7 +39,7 @@ PIGEON_TEST := $(BUILD_DIR)/pigeon$(EXE_EXT)
 
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all benchmark gui gui-backend test test-worklet1 test-worklet1-integration test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon clean
+.PHONY: all benchmark gui worklet1-cli gui-backend test test-worklet1 test-worklet1-integration test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
@@ -79,6 +80,11 @@ $(WORKLET1_TEST): $(WORKLET1_SOURCES) tests/worklet1_tests.cpp $(WORKLET1_HEADER
 
 $(WORKLET1_INTEGRATION_TEST): $(WORKLET1_SOURCES) tests/worklet_1_integration_testing.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet_1_integration_testing.cpp -o $@
+
+worklet1-cli: $(WORKLET1_CLI)
+
+$(WORKLET1_CLI): $(WORKLET1_SOURCES) apps/worklet1_cli.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) apps/worklet1_cli.cpp -o $@
 
 $(CNF_TEST): src/sat/nnf_converter.cpp tests/worklet_2_nnf_to_cnf_unit_test.cpp $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/sat/nnf_converter.cpp tests/worklet_2_nnf_to_cnf_unit_test.cpp -o $@
@@ -138,6 +144,7 @@ clean:
 	$(call DELETE_FILE,$(BUILD_DIR)/dpll_solver.o)
 	$(call DELETE_FILE,$(WORKLET1_TEST))
 	$(call DELETE_FILE,$(WORKLET1_INTEGRATION_TEST))
+	$(call DELETE_FILE,$(WORKLET1_CLI))
 	$(call DELETE_FILE,$(CNF_TEST))
 	$(call DELETE_FILE,$(DPLL_TEST))
 	$(call DELETE_FILE,$(INTEGRATION_TEST))
