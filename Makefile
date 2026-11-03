@@ -34,10 +34,12 @@ INTEGRATION_TEST := $(BUILD_DIR)/worklet_2_integration_testing$(EXE_EXT)
 GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
 TSEITIN_TEST := $(BUILD_DIR)/tseitin_test$(EXE_EXT)
 PIGEON_TEST := $(BUILD_DIR)/pigeon$(EXE_EXT)
+SUDOKU_SOURCE := src/sudoku/sudoku.cpp
+SUDOKU_TARGET := sudoku$(EXE_EXT)
 
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all benchmark gui gui-backend test test-worklet1 test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon clean
+.PHONY: all benchmark gui gui-backend test test-worklet1 test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon sudoku clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
@@ -94,6 +96,11 @@ $(TSEITIN_TEST): tests/tseitin_test.cpp $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES
 $(PIGEON_TEST): tests/pigeon.cpp $(SAT_SOLVER_LIBRARY) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/pigeon.cpp $(SAT_SOLVER_LIBRARY) -o $@
 
+sudoku: $(SUDOKU_TARGET)
+
+$(SUDOKU_TARGET): $(SUDOKU_SOURCE) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@
+
 test: test-worklet1 test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon
 
 test-worklet1: $(WORKLET1_TEST)
@@ -136,3 +143,4 @@ clean:
 	$(call DELETE_FILE,$(GRAPH_COLORING_TEST))
 	$(call DELETE_FILE,$(TSEITIN_TEST))
 	$(call DELETE_FILE,$(PIGEON_TEST))
+	$(call DELETE_FILE,$(SUDOKU_TARGET))
