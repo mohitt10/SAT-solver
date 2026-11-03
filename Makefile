@@ -28,6 +28,7 @@ SAT_SOLVER_OBJECTS := $(BUILD_DIR)/nnf_converter.o $(BUILD_DIR)/tseitin_converte
 GRAPH_COLORING_SOURCES := src/graph/graph_coloring.cpp $(SAT_SOLVER_SOURCES)
 
 WORKLET1_TEST := $(BUILD_DIR)/worklet1_tests$(EXE_EXT)
+WORKLET1_INTEGRATION_TEST := $(BUILD_DIR)/worklet_1_integration_testing$(EXE_EXT)
 CNF_TEST := $(BUILD_DIR)/worklet_2_nnf_to_cnf_unit_test$(EXE_EXT)
 DPLL_TEST := $(BUILD_DIR)/worklet_2_dpll_unit_test$(EXE_EXT)
 INTEGRATION_TEST := $(BUILD_DIR)/worklet_2_integration_testing$(EXE_EXT)
@@ -39,7 +40,7 @@ SUDOKU_TARGET := sudoku$(EXE_EXT)
 
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 
-.PHONY: all benchmark gui gui-backend test test-worklet1 test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon sudoku clean
+.PHONY: all benchmark gui gui-backend test test-worklet1 test-worklet1-integration test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY)
 
@@ -78,6 +79,9 @@ $(BUILD_DIR)/tseitin_converter.o: src/sat/tseitin_converter.cpp src/sat/nnf_conv
 $(WORKLET1_TEST): $(WORKLET1_SOURCES) tests/worklet1_tests.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet1_tests.cpp -o $@
 
+$(WORKLET1_INTEGRATION_TEST): $(WORKLET1_SOURCES) tests/worklet_1_integration_testing.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet_1_integration_testing.cpp -o $@
+
 $(CNF_TEST): src/sat/nnf_converter.cpp tests/worklet_2_nnf_to_cnf_unit_test.cpp $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) src/sat/nnf_converter.cpp tests/worklet_2_nnf_to_cnf_unit_test.cpp -o $@
 
@@ -100,11 +104,13 @@ sudoku: $(SUDOKU_TARGET)
 
 $(SUDOKU_TARGET): $(SUDOKU_SOURCE) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@
-
-test: test-worklet1 test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon
+test: test-worklet1 test-worklet1-integration test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon
 
 test-worklet1: $(WORKLET1_TEST)
 	./$(WORKLET1_TEST)
+
+test-worklet1-integration: $(WORKLET1_INTEGRATION_TEST)
+	./$(WORKLET1_INTEGRATION_TEST)
 
 test-cnf: $(CNF_TEST)
 	./$(CNF_TEST)
@@ -137,6 +143,7 @@ clean:
 	$(call DELETE_FILE,$(BUILD_DIR)/tseitin_converter.o)
 	$(call DELETE_FILE,$(BUILD_DIR)/dpll_solver.o)
 	$(call DELETE_FILE,$(WORKLET1_TEST))
+	$(call DELETE_FILE,$(WORKLET1_INTEGRATION_TEST))
 	$(call DELETE_FILE,$(CNF_TEST))
 	$(call DELETE_FILE,$(DPLL_TEST))
 	$(call DELETE_FILE,$(INTEGRATION_TEST))
