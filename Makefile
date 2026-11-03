@@ -32,6 +32,7 @@ WORKLET1_INTEGRATION_TEST := $(BUILD_DIR)/worklet_1_integration_testing$(EXE_EXT
 CNF_TEST := $(BUILD_DIR)/worklet_2_nnf_to_cnf_unit_test$(EXE_EXT)
 DPLL_TEST := $(BUILD_DIR)/worklet_2_dpll_unit_test$(EXE_EXT)
 INTEGRATION_TEST := $(BUILD_DIR)/worklet_2_integration_testing$(EXE_EXT)
+WORKLET1_UNIT_TEST := $(BUILD_DIR)/worklet1_unit_tests$(EXE_EXT)
 GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
 TSEITIN_TEST := $(BUILD_DIR)/tseitin_test$(EXE_EXT)
 PIGEON_TEST := $(BUILD_DIR)/pigeon$(EXE_EXT)
@@ -90,6 +91,8 @@ $(DPLL_TEST): src/sat/dpll_solver.cpp tests/worklet_2_dpll_unit_test.cpp $(SAT_S
 
 $(INTEGRATION_TEST): tests/worklet_2_integration_testing.cpp $(SAT_SOLVER_LIBRARY) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/worklet_2_integration_testing.cpp $(SAT_SOLVER_LIBRARY) -o $@
+$(WORKLET1_UNIT_TEST): $(WORKLET1_SOURCES) tests/worklet1_unit_tests.cpp $(WORKLET1_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) tests/worklet1_unit_tests.cpp -o $@
 
 $(GRAPH_COLORING_TEST): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp include/sat_solver/graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/graph_coloring_test.cpp -o $@
@@ -106,11 +109,14 @@ $(SUDOKU_TARGET): $(SUDOKU_SOURCE) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 test: test-worklet1 test-worklet1-integration test-cnf test-dpll test-e2e test-coloring test-tseitin test-pigeon
 
-test-worklet1: $(WORKLET1_TEST)
+test-worklet1: $(WORKLET1_UNIT_TEST) $(WORKLET1_TEST)
+	./$(WORKLET1_UNIT_TEST)
 	./$(WORKLET1_TEST)
 
 test-worklet1-integration: $(WORKLET1_INTEGRATION_TEST)
 	./$(WORKLET1_INTEGRATION_TEST)
+test-worklet1-unit: $(WORKLET1_UNIT_TEST)
+	./$(WORKLET1_UNIT_TEST)
 
 test-cnf: $(CNF_TEST)
 	./$(CNF_TEST)
@@ -147,6 +153,7 @@ clean:
 	$(call DELETE_FILE,$(CNF_TEST))
 	$(call DELETE_FILE,$(DPLL_TEST))
 	$(call DELETE_FILE,$(INTEGRATION_TEST))
+	$(call DELETE_FILE,$(WORKLET1_UNIT_TEST))
 	$(call DELETE_FILE,$(GRAPH_COLORING_TEST))
 	$(call DELETE_FILE,$(TSEITIN_TEST))
 	$(call DELETE_FILE,$(PIGEON_TEST))
