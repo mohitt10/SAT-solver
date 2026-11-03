@@ -39,7 +39,7 @@ class PerformanceTester {
         cout << fixed << setprecision(3);
         cout << "\n========== PERFORMANCE TESTING ==========\n";
 
-        for(int n = 1; n <= no_of_nodes; n++) {
+        for(int n = no_of_nodes; n <= no_of_nodes; n++) {
             vector<pair<int, int>> current_edges;
             for(auto &[a, b]: edges) {
                 if(a <= n && b <= n)    current_edges.push_back({a, b});
@@ -97,6 +97,7 @@ class PerformanceTester {
                      << "Backtracks\n";
 
                 for(int i = 0; i < 4; i++) {
+                    if (i %2 == 000.0) continue;
                     SolverResult result = solve(cnf, configs[i]);
                     const double current_time = result.total_execution_time_ms;
 
@@ -120,11 +121,11 @@ class PerformanceTester {
                          << result.backtrack_count << "\n";
                     previous_time[pipeline_index][i] = current_time;
 
-                    if(n == no_of_nodes && i == 3 &&
+                    if(n == no_of_nodes && i == 3 &&  
                        pipeline_index + 1 == pipelines.size()) {
                         if(result.is_sat) {
                             vector<pair<string, int>> values;
-                            for(const auto& [name, value] :
+                            for(const auto& [name, value] : 
                                 result.final_assignments) {
                                 if (encoding.original_variables.count(name) != 0) {
                                     values.push_back({name, value ? 1 : 0});
@@ -148,6 +149,7 @@ class PerformanceTester {
             }
 
             try {
+                if (no_of_nodes < 25) {
                 start = chrono::steady_clock::now();
                 TruthTableEngine engine;
                 TruthTable table = engine.truth_table(*parsed);
@@ -161,6 +163,7 @@ class PerformanceTester {
                     cout << "Truth table time change: " << change << "%\n";
                 }
                 previous_table_time = table_time;
+            }
             }
             catch(const length_error &error) {
                 cout << "\nTruth table: " << error.what() << "\n";
@@ -177,18 +180,50 @@ int main() {
     cin >> no_of_nodes;
     cout << "Enter number of edges: ";
     cin >> no_of_edges;
-
-    if(no_of_colours <= 0 || no_of_nodes <= 0 || no_of_edges < 0) {
-        cout << "Invalid input\n";
-        return 1;
-    }
-
+    cout << "Manual input? [Y/N]: ";
+    char c;
+    cin >> c;
+    
     vector<pair<int, int>> edges(no_of_edges);
-    for(auto &[a, b]: edges) {
-        cin >> a >> b;
-        if(a < 1 || a > no_of_nodes || b < 1 || b > no_of_nodes) {
-            cout << "Invalid edge\n";
-            return 1;
+    if(c == 'Y') {
+        for(auto &[a, b]: edges) {
+            cin >> a >> b;
+            if(a < 1 || a > no_of_nodes || b < 1 || b > no_of_nodes) {
+                cout << "Invalid edge\n";
+                return 1;
+            }
+        }
+    }
+    else {
+        srand(time(0));
+        int maxEdges = no_of_nodes * (no_of_nodes - 1) / 2, i = 0;
+
+        if (no_of_edges < 0 || no_of_edges > maxEdges) {
+            cout << "Invalid number of edges!\n";
+            return 0;
+        }
+
+        set<pair<int, int>> edg;
+
+        while ((int)edg.size() < no_of_edges) {
+            int u = rand() % no_of_nodes + 1;
+            int v = rand() % no_of_nodes + 1;
+
+            if (u == v) continue;
+
+            if (u > v)
+                swap(u, v);
+
+            if(!edg.count({u, v}))  {
+                edges[i++] = {u, v};
+                edg.insert({u, v});
+            }
+        }
+
+        cout << "\nGenerated edges:\n";
+
+        for (auto [u, v] : edges) {
+            cout << u << " " << v << "\n";
         }
     }
 
