@@ -10,7 +10,7 @@
 
 using namespace std;
 
-// --- CNF Data Structures ---
+//CNF Data Structures
 
 class Literal {
     string variable;
@@ -99,7 +99,7 @@ public:
     }
 };
 
-// --- Solver API & Configurations ---
+//Solver API & Configurations
 
 struct SolverConfig {
     bool use_unit_prop = true;
@@ -136,7 +136,7 @@ struct SolverResult {
     bool trace_truncated = false;
 };
 
-// --- Integration & Pipeline Structs ---
+//Integration & Pipeline Structs
 
 enum class CnfPipeline {
     Nnf,
@@ -148,7 +148,7 @@ struct CnfEncoding {
     unordered_set<string> original_variables;
 };
 
-// --- Function Declarations (Must be at the very bottom) ---
+// Function Declarations (Must be at the very bottom)
 
 CNF convert_nnf_to_cnf(const NodePtr& root);
 CnfEncoding convert_formula_to_cnf(const NodePtr& root, CnfPipeline pipeline);
