@@ -206,6 +206,7 @@ std::string error_json(const std::string& message) {
 
 struct Options {
     std::string operation;
+    std::string pipeline = "nnf";
     std::string unit_prop = "on";
     std::string pure_literal = "on";
     std::string trace_unit = "on";
@@ -230,7 +231,8 @@ Options parse_options(int argc, char* argv[]) {
     options.operation = argv[2];
     for (int i = 3; i < argc; ++i) {
         const std::string flag = argv[i];
-        if (flag == "--unit-prop") options.unit_prop = option_value(i, argc, argv);
+        if (flag == "--pipeline") options.pipeline = option_value(i, argc, argv);
+        else if (flag == "--unit-prop") options.unit_prop = option_value(i, argc, argv);
         else if (flag == "--pure-literal") options.pure_literal = option_value(i, argc, argv);
         else if (flag == "--trace-unit") options.trace_unit = option_value(i, argc, argv);
         else if (flag == "--trace-pure") options.trace_pure = option_value(i, argc, argv);
@@ -240,6 +242,9 @@ Options parse_options(int argc, char* argv[]) {
         else if (flag == "--nodes") options.nodes = std::stoi(option_value(i, argc, argv));
         else if (flag == "--colours") options.colours = std::stoi(option_value(i, argc, argv));
         else throw std::invalid_argument("Unknown option: " + flag);
+    }
+    if (options.pipeline != "nnf" && options.pipeline != "tseitin") {
+        throw std::invalid_argument("CNF pipeline must be 'nnf' or 'tseitin'.");
     }
     return options;
 }
@@ -319,14 +324,23 @@ std::string truth_table_json(
     return out.str();
 }
 
-CNF formula_cnf(const NodePtr& formula) {
-    const NodePtr nnf = NNFConverter().convert(*formula);
-    return convert_nnf_to_cnf(nnf);
+CnfPipeline cnf_pipeline(const std::string& value) {
+    return value == "tseitin" ? CnfPipeline::Tseitin : CnfPipeline::Nnf;
 }
 
-std::string cnf_json(const CNF& cnf) {
+CnfEncoding formula_encoding(const NodePtr& formula, const std::string& pipeline) {
+    return convert_formula_to_cnf(formula, cnf_pipeline(pipeline));
+}
+
+CNF formula_cnf(const NodePtr& formula) {
+    return formula_encoding(formula, "nnf").cnf;
+}
+
+std::string cnf_json(const CnfEncoding& encoding, const std::string& pipeline) {
+    const CNF& cnf = encoding.cnf;
     std::ostringstream out;
-    out << "{\"ok\":true,\"clauses\":" << clauses_json(cnf)
+    out << "{\"ok\":true,\"pipeline\":" << json_string(pipeline)
+        << ",\"clauses\":" << clauses_json(cnf)
         << ",\"clause_count\":" << cnf.size()
         << ",\"literal_count\":" << literal_count(cnf) << '}';
     return out.str();
@@ -336,7 +350,8 @@ std::string solve_json(
     const NodePtr& formula,
     const Options& options,
     bool include_trace) {
-    const CNF cnf = formula_cnf(formula);
+    const CnfEncoding encoding = formula_encoding(formula, options.pipeline);
+    const CNF& cnf = encoding.cnf;
     SolverConfig config;
     config.use_unit_prop = enabled(options.unit_prop);
     config.use_pure_literal = enabled(options.pure_literal);
@@ -347,7 +362,8 @@ std::string solve_json(
         TruthTableEngine().collect_variables(*formula);
 
     std::ostringstream out;
-    out << "{\"ok\":true,\"satisfiable\":"
+    out << "{\"ok\":true,\"pipeline\":" << json_string(options.pipeline)
+        << ",\"satisfiable\":"
         << (result.is_sat ? "true" : "false") << ",\"assignment\":{";
     bool first = true;
     for (const std::string& variable : variables) {
@@ -630,7 +646,9 @@ std::string run(const Options& options, std::istream& input) {
     if (options.operation == "truth-table") {
         return truth_table_json(formula, options.start, options.count);
     }
-    if (options.operation == "cnf") return cnf_json(formula_cnf(formula));
+    if (options.operation == "cnf") {
+        return cnf_json(formula_encoding(formula, options.pipeline), options.pipeline);
+    }
     if (options.operation == "solve") return solve_json(formula, options, false);
     if (options.operation == "trace") return solve_json(formula, options, true);
     throw std::invalid_argument("Unknown operation: " + options.operation);

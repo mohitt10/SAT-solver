@@ -318,6 +318,17 @@ class SatGui:
         examples.pack(side="left")
         examples.bind("<<ComboboxSelected>>", self._load_example)
 
+        ttk.Label(row, text="CNF conversion:").pack(side="left", padx=(12, 4))
+        self.cnf_pipeline = tk.StringVar(value="NNF distribution")
+        self.cnf_pipeline_selector = ttk.Combobox(
+            row,
+            textvariable=self.cnf_pipeline,
+            values=("NNF distribution", "Tseitin"),
+            state="readonly",
+            width=18,
+        )
+        self.cnf_pipeline_selector.pack(side="left")
+
         self.unit_prop = tk.BooleanVar(value=True)
         self.pure_literal = tk.BooleanVar(value=True)
         ttk.Checkbutton(row, text="Unit propagation", variable=self.unit_prop).pack(
@@ -1284,7 +1295,13 @@ class SatGui:
                     button.configure(state="normal")
                 self.active_job_buttons = ()
                 for widget in self.active_job_inputs:
-                    widget.configure(state="normal")
+                    widget.configure(
+                        state=(
+                            "readonly"
+                            if widget is self.cnf_pipeline_selector
+                            else "normal"
+                        )
+                    )
                 self.active_job_inputs = ()
                 status_widget = (
                     self.active_job_status
@@ -1313,17 +1330,23 @@ class SatGui:
         if not formula.strip():
             self.status.configure(text="Error: enter a formula first.", fg="#b00020")
             return
+        pipeline = self._selected_cnf_pipeline()
 
         def action():
             analysis = self.backend.analyze(formula)
             if not analysis.get("ok"):
                 return analysis, None
-            cnf = self.backend.cnf(formula)
+            cnf = self.backend.cnf(formula, pipeline)
             if not cnf.get("ok"):
                 raise BackendError(cnf.get("error", "CNF conversion failed."))
             return analysis, cnf
 
-        self._start_job("Analysing formula...", action, self._show_analysis)
+        self._start_job(
+            "Analysing formula...",
+            action,
+            self._show_analysis,
+            inputs=(self.cnf_pipeline_selector,),
+        )
 
     def _show_analysis(self, value):
         analysis, cnf = value
@@ -1384,7 +1407,11 @@ class SatGui:
                 )
             )
 
-        lines = ["CNF by NNF distribution", ""]
+        pipeline = cnf.get("pipeline", "nnf")
+        if pipeline == "tseitin":
+            lines = ["CNF by Tseitin conversion", ""]
+        else:
+            lines = ["CNF by NNF distribution", ""]
         for clause in cnf.get("clauses", []):
             if not clause:
                 lines.append("(empty clause)")
@@ -1400,7 +1427,12 @@ class SatGui:
                 "",
                 "Clauses: {}".format(cnf.get("clause_count", 0)),
                 "Literals: {}".format(cnf.get("literal_count", 0)),
-                "Note: distribution can grow exponentially.",
+                (
+                    "Tseitin conversion adds auxiliary variables to avoid "
+                    "exponential distribution growth."
+                    if pipeline == "tseitin"
+                    else "Note: distribution can grow exponentially."
+                ),
             ]
         )
         self._set_text(self.cnf_text, "\n".join(lines))
@@ -1503,11 +1535,16 @@ class SatGui:
             return
         unit = self.unit_prop.get()
         pure = self.pure_literal.get()
+        pipeline = self._selected_cnf_pipeline()
         self._start_job(
             "Solving formula...",
-            lambda: self.backend.solve(formula, unit, pure),
+            lambda: self.backend.solve(formula, unit, pure, pipeline=pipeline),
             self._show_solve,
+            inputs=(self.cnf_pipeline_selector,),
         )
+
+    def _selected_cnf_pipeline(self):
+        return "tseitin" if self.cnf_pipeline.get() == "Tseitin" else "nnf"
 
     def _show_solve(self, response):
         if not response.get("ok"):
@@ -1546,6 +1583,10 @@ class SatGui:
             [
                 "",
                 "Variables: {}".format(response["variable_count"]),
+                "CNF conversion: {}".format(
+                    "Tseitin" if response.get("pipeline") == "tseitin"
+                    else "NNF distribution"
+                ),
                 "Clauses: {}".format(response["clause_count"]),
                 "Literals: {}".format(response["literal_count"]),
                 "Solver time: {:.3f} ms".format(response["solver_time_ms"]),

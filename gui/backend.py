@@ -125,13 +125,21 @@ class Backend:
     def analyze(self, formula):
         return self.request("analyze", formula)
 
-    def cnf(self, formula):
-        return self.request("cnf", formula)
+    def cnf(self, formula, pipeline="nnf"):
+        return self.request("cnf", formula, {"pipeline": pipeline})
 
-    def solve(self, formula, unit_prop=True, pure_literal=True, trace=True):
+    def solve(
+        self,
+        formula,
+        unit_prop=True,
+        pure_literal=True,
+        trace=True,
+        pipeline="nnf",
+    ):
         options = {
             "unit_prop": "on" if unit_prop else "off",
             "pure_literal": "on" if pure_literal else "off",
+            "pipeline": pipeline,
         }
         if trace:
             options["trace_limit"] = 10000

@@ -165,12 +165,14 @@ The AST structure is unchanged. Multi-error recovery is not implemented.
 
 ## Tests
 
-Run the lexer, parser, truth-table, validation, NNF/CNF, SAT, and graph-colouring
-tests with:
+Run the lexer, parser, truth-table, validation, NNF/CNF, SAT, graph-colouring,
+and formula-to-SAT end-to-end tests with:
 
 ```sh
 make test
 ```
+
+Run only the formula-to-SAT end-to-end tests with `make e2e-test`.
 
 The default `make` target builds the SAT solver, its library, and the Sudoku
 program.

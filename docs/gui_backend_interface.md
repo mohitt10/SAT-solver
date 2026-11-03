@@ -17,8 +17,9 @@ Formula requests receive the complete formula text on standard input:
 sat_solver_backend --gui analyze
 sat_solver_backend --gui truth-table --start 0 --count 100
 sat_solver_backend --gui cnf
+sat_solver_backend --gui cnf --pipeline tseitin
 sat_solver_backend --gui solve --unit-prop on --pure-literal on
-sat_solver_backend --gui trace --unit-prop on --pure-literal on --trace-limit 10000
+sat_solver_backend --gui trace --pipeline tseitin --unit-prop on --pure-literal on --trace-limit 10000
 ```
 
 `analyze` returns the variable list, an indented AST string, and a
@@ -29,14 +30,17 @@ with an explanatory message above the 24-variable truth-table limit.
 Boolean value for each listed variable and the formula result. Requests over
 the truth-table variable limit return an error response.
 
-`cnf` returns clauses as arrays of `{ "variable": "...", "negated": false }`
-literal objects, along with clause and literal counts. It uses NNF conversion
-and distribution; large formulas may therefore produce large CNFs.
+`cnf`, `solve`, and `trace` accept `--pipeline nnf|tseitin` (default `nnf`).
+`cnf` returns the selected pipeline, clauses as arrays of
+`{ "variable": "...", "negated": false }` literal objects, and clause and
+literal counts. NNF conversion uses distribution, which can grow exponentially;
+Tseitin conversion introduces auxiliary variables to avoid that growth.
 
-`solve` returns `satisfiable`, the original-variable assignment when SAT, and
-variable, clause, literal, time, decision, and backtrack metrics. `trace`
-returns the same result plus a bounded ordered event list and
-`trace_truncated`.
+`solve` returns the selected pipeline, `satisfiable`, the original-variable
+assignment when SAT, and variable, clause, literal, time, decision, and
+backtrack metrics. `trace` returns the same result plus a bounded ordered event
+list and `trace_truncated`. The Formula tab exposes this pipeline choice for
+both CNF analysis and solving.
 
 ## Puzzle request
 

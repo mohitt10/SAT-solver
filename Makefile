@@ -30,6 +30,7 @@ INTEGRATION_TEST := $(BUILD_DIR)/worklet_2_integration_testing$(EXE_EXT)
 WORKLET1_UNIT_TEST := $(BUILD_DIR)/worklet1_unit_tests$(EXE_EXT)
 GRAPH_COLORING_TEST := $(BUILD_DIR)/graph_coloring_test$(EXE_EXT)
 TSEITIN_TEST := $(BUILD_DIR)/tseitin_test$(EXE_EXT)
+END_TO_END_TEST := $(BUILD_DIR)/end_to_end_test$(EXE_EXT)
 PIGEON_TEST := $(BUILD_DIR)/pigeon$(EXE_EXT)
 SUDOKU_SOURCE := src/sudoku/sudoku.cpp
 SUDOKU_TARGET := sudoku$(EXE_EXT)
@@ -37,17 +38,20 @@ SUDOKU_TARGET := sudoku$(EXE_EXT)
 SAT_SOLVER_LIBRARY := $(BUILD_DIR)/libsat_solver.a
 TEST_BINARIES := $(WORKLET1_TEST) $(WORKLET1_UNIT_TEST) $(WORKLET1_INTEGRATION_TEST) \
 	$(WORKLET1_VALIDATION_TEST) $(CNF_TEST) $(DPLL_TEST) $(INTEGRATION_TEST) \
-	$(GRAPH_COLORING_TEST) $(TSEITIN_TEST)
+	$(GRAPH_COLORING_TEST) $(TSEITIN_TEST) $(END_TO_END_TEST)
 SAT_SOLVER_OUTPUTS := sat_solver$(EXE_EXT) sat_solver_backend$(EXE_EXT) \
 	performance$(EXE_EXT) $(SUDOKU_TARGET)
 
-.PHONY: all benchmark gui-backend test clean
+.PHONY: all benchmark gui-backend e2e-test test clean
 
 all: sat_solver$(EXE_EXT) $(SAT_SOLVER_LIBRARY) $(SUDOKU_TARGET)
 
 gui-backend: sat_solver_backend$(EXE_EXT)
 
 benchmark: performance$(EXE_EXT)
+
+e2e-test: $(END_TO_END_TEST)
+	./$(END_TO_END_TEST)
 
 sat_solver_backend$(EXE_EXT): $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) src/graph/graph_coloring.cpp apps/gui_backend.cpp include/sat_solver/graph_coloring.h $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) src/graph/graph_coloring.cpp apps/gui_backend.cpp -o $@
@@ -98,6 +102,9 @@ $(GRAPH_COLORING_TEST): $(WORKLET1_SOURCES) $(GRAPH_COLORING_SOURCES) tests/grap
 $(TSEITIN_TEST): tests/tseitin_test.cpp $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) tests/tseitin_test.cpp -o $@
 
+$(END_TO_END_TEST): tests/end_to_end_test.cpp $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) $(WORKLET1_HEADERS) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(WORKLET1_SOURCES) $(SAT_SOLVER_SOURCES) tests/end_to_end_test.cpp -o $@
+
 $(PIGEON_TEST): tests/pigeon.cpp $(SAT_SOLVER_LIBRARY) $(SAT_SOLVER_HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/pigeon.cpp $(SAT_SOLVER_LIBRARY) -o $@
 
@@ -114,6 +121,7 @@ test: $(TEST_BINARIES)
 	./$(INTEGRATION_TEST)
 	./$(GRAPH_COLORING_TEST)
 	./$(TSEITIN_TEST)
+	./$(END_TO_END_TEST)
 
 $(BUILD_DIR):
 	$(MKDIR_BUILD)
