@@ -1,16 +1,3 @@
-// =============================================================================
-//  worklet1_validation_tests.cpp
-//  VALIDATION test-suite for Worklet 1 (propositional-logic front end)
-//
-//  Covers : Lexer -> Parser (Shunting-Yard + AST) -> Truth table -> NNF
-//  Style  : every check has an auto-generated ID (LEX-01, PAR-07, ...), a plain
-//           English description, and prints PASS/FAIL.  The suite does NOT stop
-//           at the first failure, so you always see the whole picture.
-//  Oracle : an independent evaluator (class Oracle below) is used to cross-check
-//           the project's own bit-parallel truth table and equivalence engine.
-//
-//  Run    : see docs/worklet1_validation_guide.md   (or ./worklet1_validation_tests --quiet)
-// =============================================================================
 #include "lexer.h"
 #include "nnf.h"
 #include "parse_error.h"
